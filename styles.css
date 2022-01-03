@@ -1,0 +1,62 @@
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html, body{
+    background-color: #2D3E50;
+    color: white;
+    height:100vh;
+}
+
+#game{
+    display:grid;
+
+    grid-template-areas:
+                        "title title title"
+                        "pc    score user"
+                        "board board board";
+    grid-template-columns:2fr 1fr 2fr;
+    grid-template-rows:50px 100px calc(100vh - 150px);
+    /* gap:5px; */
+}
+
+#game > .title{
+    grid-area:title;
+   
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+}
+
+#game > .pc{
+    grid-area:pc;
+}
+
+#game > .score{
+    grid-area:score;
+}
+
+#game > .user{
+    grid-area:user;
+}
+
+#game > .menu{
+    height:100px;
+}
+
+#game > .board{
+    grid-area:board;
+}
+
+#board{
+    background-color:#ccc;
+    width:100%;
+    height:100%;
+}
+
+div{
+    /* border:1px solid #ccc; */
+}
