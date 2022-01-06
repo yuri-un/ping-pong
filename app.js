@@ -1,3 +1,13 @@
+const Type = Object.freeze({
+    "Rectangle": 1,
+    "Circle": 2,
+    "AI": 3,
+    "PC": 4,
+    "Point": 5,
+    "Vector": 6,
+    "SpeedVector": 7
+});
+
 class Game{
     isInitialised;
     isPaused;
@@ -37,8 +47,8 @@ class Board{
         
         window.addEventListener('resize', this.#resize.bind(this), false);
         
-        this.createModels();
         this.createMap();
+        this.createModels();
 
         console.log(this.ctx);
         console.log(this.ctx.canvas);
@@ -53,13 +63,13 @@ class Board{
         const midWidth = Math.round(this.canvas.width/2);
         const midHeight = Math.round(this.canvas.height/2);
 
-        this.ai = new AI(this, 15, midHeight, 25, 100);
+        this.ai = new AI(this, 15, midHeight - 50, 25, 100);
         this.vMap.push(this.ai);
 
         this.pc = new PlayerController(this, this.canvas.width - 40, midHeight, 25, 100);
         this.vMap.push(this.pc);
 
-        this.ball = new Ball(this, {radius: 30});
+        this.ball = new Ball(this, 150, 100, 25);
     }
 
     createMap(){
@@ -69,8 +79,10 @@ class Board{
         this.vMap.push(new Rectangle(this, this.canvas.width - 10, 20, 10, this.canvas.height - 40));
         
         this.vMap.push(new Rectangle(this, 50, 300, 50, 50));
-        this.vMap.push(new Rectangle(this, 200, 250, 100, 100));
+        this.vMap.push(new Rectangle(this, 250, 250, 100, 100));
         this.vMap.push(new Rectangle(this, 300, 50, 70, 70));
+        //this.vMap.push(new Rectangle(this, 100, 90, 30, 100));
+        this.vMap.push(new Circle(this, 100, 90, 50));
     }
 
     draw(){
@@ -80,12 +92,10 @@ class Board{
             obj.draw();
 
             if(obj.checkCollision(this.ball)){
-                this.ball.updateDirection(obj);
+                this.ball.updateSpeedVector(obj);
             }
         })
 
-        //this.ai.render();
-        //this.pc.render();
         this.ball.render();
         
         if(this.x <= this.ctx.canvas.width - 150){
@@ -94,59 +104,85 @@ class Board{
     }
 
     render(){
-
-
         window.requestAnimationFrame(this.draw.bind(this));
     }
 }
 
+//A point data structure. Contains x and y coordinates
 class Point{
-    x;
-    y;
+    #type;
 
     constructor(x, y){
+        this.#type = Type.Point;
+
         this.x = Math.round(x);
         this.y = Math.round(y);
     }
+
+    getType(){
+        return this.#type;
+    }
 }
 
+//A vector data structure. Contains a length and its projections
 class Vector{
-    dX;
-    dY;
+    #type;
     #length;
 
     constructor(dX, dY){
-        this.dX = dX;
-        this.dY = dY;
-        this.#length = this.#calcLength(dX, dY);
+        this.#type = Type.Vector;
+
+        this.dX = Math.round(dX);
+        this.dY = Math.round(dY);
+        this.#length = this.#calcLength(this.dX, this.dY);
     }
 
     getLength(){
         return this.#length;
     }
 
+    getType(){
+        return this.#type;
+    }
+
     #calcLength(dX, dY){
-        return Math.sqrt(dX*dX + dY*dY);
-    }
+        const d = Math.sqrt(dX*dX + dY*dY);
 
-    static angleToRad(angle){
-        return 2*Math.PI*angle/360;
-    }
-
-    static radToAngle(rad){
-        return rad*360/2*Math.PI;
+        return d === 0? 1: d; //1 -> unit vector
     }
 }
 
+//Axis-aligned Bounding Box data structure. Represents the size of a figure
+class AABB{
+    #type;
+
+    //min, max are Vectors
+    constructor(min, max){
+        this.#type = Type.Vector;
+
+        this.min = min;
+        this.max = max;
+    }
+
+    getType(){
+        return this.#type;
+    }
+}
+
+//Represents speed and direction of the ball
 class SpeedVector{
+    #type;
     #dX;
     #dY;
     #xDir;
-    //angle is measured in deg
+    #quadrant;
+    //angle is measured in deg (initial direction based on Ox axis)
     //rad - is a radian value that vary between 0 and 2*PI
     constructor(speed, angle){
+        this.#type = Type.SpeedVector;
+
         this.speed = speed;
-        this.rad = Vector.angleToRad(angle);
+        this.rad = D2Math.angleToRad(angle);
         this.#dX = Math.round(speed*Math.cos(this.rad));
         this.#dY = Math.round(speed*Math.sin(this.rad));
     }
@@ -176,16 +212,24 @@ class SpeedVector{
 
         if(this.#dX > 0 && this.#dY > 0){ //I
             this.rad = deltaAngle;
+            this.#quadrant = 1;
         }
         else if(this.#dX < 0 && this.#dY > 0){ //II
             this.rad = 3.1416 - deltaAngle;
+            this.#quadrant = 2;
         }
         else if(this.#dX < 0 && this.#dY < 0){ //III
             this.rad = 3.1416 + deltaAngle;
+            this.#quadrant = 3;
         }
         else if(this.#dX > 0 && this.#dY < 0){ //IV
             this.rad = 6.26 - deltaAngle;
+            this.#quadrant = 4;
         }
+    }
+
+    getQuadrant(){
+        return this.#quadrant;
     }
 
     #updateXDir(){
@@ -200,118 +244,248 @@ class SpeedVector{
     getXDir(){
         return this.#xDir;
     }
+
+    getType(){
+        return this.#type;
+    }
 }
 
-class Ball{
-    _speed = 2;
-    #dirVector;
-
-    constructor(ref, size){
+class Figure{
+    constructor(ref, x, y){
         this.ref = ref;
-        this.radius = size.radius;
-        this.currentPosition = new Point(ref.ai.x1 + ref.ai.width + size.radius + 5, ref.ai.y1);
+        this.x1 = Math.round(x);
+        this.y1 = Math.round(y);
+        this.p1 = new Point(Math.round(this.x1), Math.round(this.y1)); //top-left
+    }
+}
+
+class Rectangle extends Figure{
+    #type;
+
+    constructor(ref, x, y, width, height){
+        super(ref, x, y);
+        this.#type = Type.Rectangle;
+
+        this.width = Math.round(width);
+        this.height = Math.round(height);
+
+        this.p0 = new Point(Math.round(this.p1.x + this.width/2), Math.round(this.p1.y + this.height/2)); //center
+        this.p2 = new Point(Math.round(this.p1.x + this.width), Math.round(this.p1.y)); //top-right
+        this.p3 = new Point(Math.round(this.p1.x + this.width), Math.round(this.p1.y + this.height)); //bottom-right
+        this.p4 = new Point(Math.round(this.p1.x), Math.round(this.p1.y + this.height)); //bottom-left
+
+        this.angleRatio = Math.atan(this.height / this.width);
         
-        this.#dirVector = new SpeedVector(this._speed, 30);
+        const v01 = new Vector(this.p1.x - this.p0.x, this.p1.y - this.p0.y); //center->top-left
+        const v02 = new Vector(this.p2.x - this.p0.x, this.p2.y - this.p0.y); //center->top-right
+        const v03 = new Vector(this.p3.x - this.p0.x, this.p3.y - this.p0.y); //center->bottom-right
+        const v04 = new Vector(this.p4.x - this.p0.x, this.p4.y - this.p0.y); //center->bottom-left
+
+        this.sideMap = new Map(); //vector map
+        this.sideMap.set("top", [v01, v02]);
+        this.sideMap.set("right", [v02, v03]);
+        this.sideMap.set("bottom", [v03, v04]);
+        this.sideMap.set("left", [v04, v01]);
+
+        this.aabb = new AABB(new Vector(this.p1.x, this.p1.y), new Vector(this.p3.x, this.p3.y)); //set a simple collision edge
+    }
+    
+    //AABB collision detection algorithm
+    checkCollision(refBall){
+        const d1x = this.aabb.min.dX - refBall.aabb.max.dX;
+        const d1y = this.aabb.min.dY - refBall.aabb.max.dY;
+        const d2x = refBall.aabb.min.dX - this.aabb.max.dX;
+        const d2y = refBall.aabb.min.dY - this.aabb.max.dY;
+        
+        if(d1x > 0 || d1y > 0){
+            return false;
+        }
+        if(d2x > 0 || d2y > 0){
+            return false;
+        }
+        
+        return true;
+    }
+
+    draw(){
+        this.ref.ctx.beginPath();
+        this.ref.ctx.fillStyle = "orange";
+        this.ref.ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
+        this.ref.ctx.fill();
+    }
+
+    getType(){
+        return this.#type;
+    }
+}
+
+class Circle extends Figure{
+    #type;
+
+    constructor(ref, x, y, radius){
+        super(ref, x, y);
+        this.#type = Type.Circle;
+
+        this.type = 'Circle';
+        //this.p1 - initial drawing point of the figure
+        this.radius = Math.round(radius);
+        this.aabb = new AABB(new Vector(this.p1.x - this.radius, this.p1.y - this.radius), new Vector(this.p1.x + this.radius, this.p1.y + this.radius));
+    }
+
+    checkCollision(refBall){
+        const dX = this.p1.x - refBall.currentPosition.x;
+        const dY = this.p1.y - refBall.currentPosition.y;
+        const d = Math.sqrt(dX*dX + dY*dY);
+
+        if(d > (this.radius + refBall.radius)){
+            return false;
+        }
+        
+        return true;
+    }
+
+    draw(){
+        this.ref.ctx.beginPath();
+        this.ref.ctx.fillStyle = "blue";
+        this.ref.ctx.arc(this.p1.x, this.p1.y, this.radius, 0, 2*Math.PI);
+        this.ref.ctx.fill();
+    }
+
+    getType(){
+        return this.#type;
+    }
+}
+
+class Ball {
+    _speed = 5;
+    #dirVector;
+    #previousPosition;
+
+    constructor(ref, x, y, radius){
+        this.ref = ref;
+        this.radius = Math.round(radius);
+
+        this.x = Math.round(x);
+        this.y = Math.round(y);
+        this.currentPosition = new Point(x, y);
+        
+        const min = new Vector(this.currentPosition.x - this.radius, this.currentPosition.y - this.radius);
+        const max = new Vector(this.currentPosition.x + this.radius, this.currentPosition.y + this.radius);
+        this.aabb = new AABB(min, max); //set a simple collision edge
+
+        this.#dirVector = new SpeedVector(this._speed, 60);
     }
 
     getVector(){
         return this.#dirVector;
     }
 
-    updateDirection(impactObject){
-        const x = this.currentPosition.x;
-        const y = this.currentPosition.y;
-        const x1 = impactObject.x1;
-        const y1 = impactObject.y1;
-        const x2 = impactObject.x2;
-        const y2 = impactObject.y2;
-
-        if((x1 < x + this.radius) && (x1 > x) && (y1 < y + this.radius) && (y1 > y)){
-            const dx = x1 - x;
-            const dy = y1 - y;
-
-            this.#updateDirectionCorners(dx, dy);
-            console.log('Q1');
-            return;
+    updateSpeedVector(impactObject){
+        switch(impactObject.getType()){
+            case Type.Circle:
+                this.#updateVectorCircleToCircle(impactObject);
+                break;
+            case Type.Rectangle:
+                this.#updateVectorCircleToRectangle(impactObject);
+                break;
         }
-        if((x2 > x - this.radius) && (x2 < x) && (y1 < y + this.radius) && (y1 > y)){
-            const dx = x2 - x;
-            const dy = y1 - y;
+    }
 
-            this.#updateDirectionCorners(dx, dy);
-            console.log('Q2');
-            return;
-
-        }
-        else if((x1 < x + this.radius) && (x1 > x) && (y2 > y - this.radius) && (y2 < y)){
-            const dx = x1 - x;
-            const dy = y2 - y;
-
-            this.#updateDirectionCorners(dx, dy);
-            console.log('Q3');
-            return;
-
-        }
-        else if((x2 > x - this.radius) && (x2 < x) && (y2 > y - this.radius) && ( y2 < y)){
-            const dx = impactObject.x2 - x;
-            const dy = impactObject.y2 - y;
-
-            this.#updateDirectionCorners(dx, dy);
-            console.log('Q4');
-            return;
-
-        }
-
-        if((impactObject.y1 < y + this.radius/3) && (y - this.radius/3 < impactObject.y2) && ((impactObject.x1 <= y + this.radius) || (impactObject.x2 >= y - this.radius))){
+    #updateVectorCircleToCircle(impactObject){
+        const quadrant = this.#dirVector.getQuadrant();
+        const dir = this.#dirVector.getXDir();
+        console.log(quadrant, dir);
+        
+        if(quadrant === 1 && dir < 0){
             this.#dirVector.setdX((-1)*this.#dirVector.getdX());
         }
-        
-        if((impactObject.x1 < x + this.radius/3) && (x - this.radius/3 < impactObject.x2) && ((impactObject.y1 <= y + this.radius) || (impactObject.y2 >= y - this.radius))){
+        else if(quadrant === 2 && dir > 0){
+            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+        }
+        else if(quadrant === 3 && dir > 0){
+            this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+        }
+        else if(quadrant === 4 && dir < 0){
             this.#dirVector.setdY((-1)*this.#dirVector.getdY());
         }
     }
 
-    #updateDirectionCorners(dx, dy){
-        const d = Math.sqrt(dx*dx + dy*dy);
+    #updateVectorCircleToRectangle(impactObject){
+        const x = this.#previousPosition.x;
+        const y = this.#previousPosition.y;
 
-        if(d <= this.radius){
-            const angle = Math.acos(Math.abs(dx)/d);
-            //console.log(angle);
+        const x0 = impactObject.p0.x;
+        const y0 = impactObject.p0.y;
+        const v0 = new Vector(x - x0, y - y0);
 
-            if(angle < 0.785){
-                this.#dirVector.setdX((-1)*this.#dirVector.getdX());
-            }
-            else{
-                this.#dirVector.setdY((-1)*this.#dirVector.getdY());
-            }
+        //Check for a diagonal impact
+        const angleDelta = Math.abs(Math.acos(v0.dX / v0.getLength()) - impactObject.angleRatio);
+        if((0 <= angleDelta) && (angleDelta <= 0.1)){
+            //this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
         }
+
+        //Check the impact side for the static figure
+        impactObject.sideMap.forEach((value, key, map) => {
+            const sideVector = new Vector(value[1].dX - value[0].dX, value[1].dY - value[0].dY)
+            const negativeVector = new Vector(-1*value[0].dX, -1*value[0].dY);
+            const vd = new Vector(v0.dX - value[0].dX, v0.dY - value[0].dY);
+
+            const v1 = v0.dX*value[0].dY - v0.dY*value[0].dX; //[v0, v01]
+            const v2 = v0.dX*value[1].dY - v0.dY*value[1].dX; //[v0, v02]
+            const v3 = sideVector.dX*negativeVector.dY - sideVector.dY*negativeVector.dX; //[sideVector, negativeVector]
+            const v4 = sideVector.dX*vd.dY - sideVector.dY*vd.dX; //[sideVector, vd]
+
+            if((v1*v2 < 0) && (v3*v4 < 0)){
+                switch(key){
+                    case 'top':
+                        this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+                    break;
+                    case 'right':
+                        this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+                    break;
+                    case 'bottom':
+                        this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+                    break;
+                    case 'left':
+                        this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+                    break;
+                }
+            }
+        });
     }
 
-    #updateCanvasCollision(){
+    #updatePosition(){
+        this.#previousPosition = this.currentPosition;
+        
         const deltaX = this.#dirVector.getdX();
         const deltaY = this.#dirVector.getdY();
-
+        
         this.currentPosition.x += deltaX;
         this.currentPosition.y += deltaY;
-
-        if(this.currentPosition.x < this.radius || this.currentPosition.x > this.ref.canvas.width - this.radius){
-            this.#dirVector.setdX((-1)*deltaX);
-        }
-
-        if(this.currentPosition.y < this.radius || this.currentPosition.y > this.ref.canvas.height - this.radius){
-            this.#dirVector.setdY((-1)*deltaY);
-        }
+        
+        this.aabb.min.dX = this.currentPosition.x - this.radius;
+        this.aabb.min.dY = this.currentPosition.y - this.radius;
+        this.aabb.max.dX = this.currentPosition.x + this.radius;
+        this.aabb.max.dY = this.currentPosition.y + this.radius;
     }
 
     render(){
-        const deltaX = this.#dirVector.getdX();
-        const deltaY = this.#dirVector.getdY();
+        this.#updatePosition();
 
-        this.currentPosition.x += deltaX;
-        this.currentPosition.y += deltaY;
+        const x0 = this.currentPosition.x;
+        const y0 = this.currentPosition.y;
 
-        //this.#updateCanvasCollision();
+        this.ref.ctx.beginPath();
+        this.ref.ctx.lineWidth = 0;
+        this.ref.ctx.fillStyle = "green";
+        this.ref.ctx.ellipse(x0, y0, this.radius, this.radius, 0, 0, 2*Math.PI);
+        this.ref.ctx.fill();
 
+        //this.#drawDevData();
+    }
+
+    #drawDevData(){
         const x0 = this.currentPosition.x;
         const y0 = this.currentPosition.y;
         const x1 = x0 + 10*this.#dirVector.speed*Math.cos(this.#dirVector.rad);
@@ -327,110 +501,41 @@ class Ball{
         this.ref.ctx.beginPath();
         this.ref.ctx.font = '18px serif';
         this.ref.ctx.strokeText("Rad = " + Math.round(this.#dirVector.rad*1000)/1000, x1, y1);
-
-        this.ref.ctx.beginPath();
-        this.ref.ctx.lineWidth = 0;
-        this.ref.ctx.fillStyle = "green";
-        this.ref.ctx.ellipse(x0, y0, this.radius, this.radius, 0, 0, 2*Math.PI);
-        this.ref.ctx.fill();
-    }
-}
-
-
-class Figure{
-    constructor(ref, x, y, path){
-        this.ref = ref;
-        this.x = x;
-        this.y = y;
-    }
-}
-
-class Rectangle extends Figure{
-    constructor(ref, x, y, width, height){
-        super(ref, x, y);
-
-        this.x1 = Math.round(x);
-        this.y1 = Math.round(y);
-        this.width = Math.round(width);
-        this.height = Math.round(height);
-        this.x2 = this.x1 + this.width;
-        this.y2 = this.y1 + this.height;
-        this.area = this.width*this.height;     
-    }
-    
-    draw(){
-        this.ref.ctx.beginPath();
-        this.ref.ctx.fillStyle = "orange";
-        this.ref.ctx.fillRect(this.x1, this.y1, this.width, this.height);
-        this.ref.ctx.fill();
-    }
-
-    checkCollision(refBall){
-        const x0 = refBall.currentPosition.x;
-        const y0 = refBall.currentPosition.y;
-        const radius = refBall.radius;
-
-        if((this.x1 <= x0 + radius && this.x2 >= x0 - radius) && (this.y1 <= y0 + radius && this.y2 >= y0 - radius)){
-            return true;
-        }
-
-        return false;
-    }
-}
-
-class Circle extends Figure{
-    constructor(ref, x, y, radius){
-        super(ref, x, y);
-
-        this.x = x;
-        this.y = y;
-        this.radius = radius;
-        this.area = Math.PI*this.radius*this.radius;
     }
 }
 
 class AI extends Rectangle{
+    #type;
     #speed;
 
     constructor(ref, x, y, width, height){
         super(ref, x, y, width, height);
-
-        this.width = Math.round(width);
-        this.height = Math.round(height);
-        this.x1 = Math.round(x);
-        this.y1 = Math.round(y - this.height/2);
-        this.x2 = this.x1 + this.width;
-        this.y2 = this.y1 + this.height;
-        this.area = this.width*this.height;     
+        this.#type = Type.AI;
     }
 
     draw(){
         this.ref.ctx.beginPath();
         this.ref.ctx.fillStyle = "red";
-        this.ref.ctx.fillRect(this.x1, this.y1, this.width, this.height);
+        this.ref.ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
+    }
+
+    getType(){
+        return this.#type;
     }
 }
 
 class PlayerController extends Rectangle{
-    #x2;
-    #y2;
+    #type;
 
     constructor(ref, x, y, width, height){
         super(ref, x, y, width, height);
-
-        this.width = Math.round(width);
-        this.height = Math.round(height);
-        this.x1 = Math.round(x);
-        this.y1 = Math.round(y - this.height/2);
-        this.x2 = this.x1 + this.width;
-        this.y2 = this.y1 + this.height;
-        this.area = this.width*this.height;     
+        this.#type = Type.PC;
     }
 
     draw(){
         this.ref.ctx.beginPath();
         this.ref.ctx.fillStyle = "red";
-        this.ref.ctx.fillRect(this.x1, this.y1, this.width, this.height);
+        this.ref.ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
     }
 
     setXY(x, y){
@@ -439,6 +544,20 @@ class PlayerController extends Rectangle{
         this.x2 = this.x1 + this.width;
         this.y2 = this.y1 + this.height;
     }
+
+    getType(){
+        return this.#type;
+    }
+}
+
+class D2Math{
+    static angleToRad(angle){
+        return 2*Math.PI*angle/360;
+    }
+
+    static radToAngle(rad){
+        return rad*360/2*Math.PI;
+    } 
 }
 
 const board = new Board("board");
