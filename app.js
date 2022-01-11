@@ -42,8 +42,15 @@ class Board{
         this.canvas = document.getElementById(board);
         this.ctx = this.canvas.getContext('2d');
 
-        this.x = 1;
         this.#resize();
+
+        this.x = 1;
+        this.borderTop = 40;
+        this.borderBottom = this.borderTop;
+        this.borderLeft = 10;
+        this.borderRight = this.borderLeft;
+        this.areaHeight = this.canvas.height - this.borderTop - this.borderBottom;
+        this.areaWidth = this.canvas.width - this.borderLeft - this.borderRight;
         
         window.addEventListener('resize', this.#resize.bind(this), false);
         
@@ -63,25 +70,27 @@ class Board{
         const midWidth = Math.round(this.canvas.width/2);
         const midHeight = Math.round(this.canvas.height/2);
 
+        this.ball = new Ball(this, 150, 100, 25);
+
         this.ai = new AI(this, 15, midHeight - 50, 25, 100);
         this.vMap.push(this.ai);
 
         this.pc = new PlayerController(this, this.canvas.width - 40, midHeight, 25, 100);
         this.vMap.push(this.pc);
 
-        this.ball = new Ball(this, 150, 100, 25);
     }
 
     createMap(){
-        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, 20));
-        this.vMap.push(new Rectangle(this, 0, this.canvas.height - 20, this.canvas.width, 20));
+        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, this.borderTop)); //top border
+        this.vMap.push(new Rectangle(this, 0, this.canvas.height - this.borderBottom, this.canvas.width, this.borderBottom)); //bottom border
+        
         this.vMap.push(new Rectangle(this, 0, 20, 10, this.canvas.height - 40));
         this.vMap.push(new Rectangle(this, this.canvas.width - 10, 20, 10, this.canvas.height - 40));
         
-        this.vMap.push(new Rectangle(this, 50, 300, 50, 50));
-        this.vMap.push(new Rectangle(this, 250, 250, 100, 100));
+        //this.vMap.push(new Rectangle(this, 50, 350, 50, 50));
+        this.vMap.push(new Rectangle(this, 230, 280, 100, 100));
         this.vMap.push(new Rectangle(this, 300, 50, 70, 70));
-        //this.vMap.push(new Rectangle(this, 100, 90, 30, 100));
+        //this.vMap.push(new Rectangle(this, 160, 90, 30, 100));
         this.vMap.push(new Circle(this, 100, 90, 50));
     }
 
@@ -185,6 +194,9 @@ class SpeedVector{
         this.rad = D2Math.angleToRad(angle);
         this.#dX = Math.round(speed*Math.cos(this.rad));
         this.#dY = Math.round(speed*Math.sin(this.rad));
+        this.#xDir = 1;
+
+        console.log(this);
     }
 
     setdX(dX){
@@ -368,12 +380,15 @@ class Ball {
         this.x = Math.round(x);
         this.y = Math.round(y);
         this.currentPosition = new Point(x, y);
+        this.#previousPosition = this.currentPosition;
         
         const min = new Vector(this.currentPosition.x - this.radius, this.currentPosition.y - this.radius);
         const max = new Vector(this.currentPosition.x + this.radius, this.currentPosition.y + this.radius);
         this.aabb = new AABB(min, max); //set a simple collision edge
 
         this.#dirVector = new SpeedVector(this._speed, 60);
+
+        console.log(this);
     }
 
     getVector(){
@@ -388,26 +403,31 @@ class Ball {
             case Type.Rectangle:
                 this.#updateVectorCircleToRectangle(impactObject);
                 break;
+            case Type.AI:
+                this.#updateVectorCircleToRectangle(impactObject);
+                break;
         }
     }
 
     #updateVectorCircleToCircle(impactObject){
+        //transparent
+        
         const quadrant = this.#dirVector.getQuadrant();
         const dir = this.#dirVector.getXDir();
-        console.log(quadrant, dir);
+        //console.log(quadrant, dir);
         
-        if(quadrant === 1 && dir < 0){
-            this.#dirVector.setdX((-1)*this.#dirVector.getdX());
-        }
-        else if(quadrant === 2 && dir > 0){
-            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
-        }
-        else if(quadrant === 3 && dir > 0){
-            this.#dirVector.setdX((-1)*this.#dirVector.getdX());
-        }
-        else if(quadrant === 4 && dir < 0){
-            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
-        }
+        // if(dir > 0 && quadrant === ){
+        //     this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+        // }
+        // else if(quadrant === 2 && dir > 0){
+        //     this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+        // }
+        // else if(quadrant === 3 && dir > 0){
+        //     this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+        // }
+        // else if(quadrant === 4 && dir < 0){
+        //     this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+        // }
     }
 
     #updateVectorCircleToRectangle(impactObject){
@@ -506,17 +526,97 @@ class Ball {
 
 class AI extends Rectangle{
     #type;
-    #speed;
+    #maxSpeed = 7;
+    #difficultyMode = 1;
 
     constructor(ref, x, y, width, height){
         super(ref, x, y, width, height);
         this.#type = Type.AI;
+
+        this.currentPosition = new Point(this.p1.x, this.p1.y);
+        this.centerHeight = Math.round(height/2);
+        this.defaultPosition = new Point(this.currentPosition.x, this.ref.canvas.height/2 - this.centerHeight);
+        this.speedY = 0;
+    }
+
+    trackBall(){
+        if(this.ref.ball.getVector().getXDir() > 0)
+        {
+            this.#returnToDefaultPosition();
+            return;
+        }
+
+        this.#followBallPosition();
+    }
+
+    #checkArea(){
+        const aiTopY = this.currentPosition.y;
+        const aiBottomY = this.currentPosition.y + this.height;
+        const interval = Math.round(this.ref.ball.radius/3);
+
+        if((aiTopY - interval < this.ref.borderTop)){
+            return false;
+        }
+        if (aiBottomY + interval> this.ref.areaHeight + this.ref.borderTop){
+            return false;
+        }
+
+        return true;
+    }
+
+    #returnToDefaultPosition(){
+        const deltaY = this.defaultPosition.y - this.currentPosition.y;
+
+        if(Math.abs(deltaY) <= 1){
+            return;
+        }
+        this.speedY = Math.log(Math.abs(deltaY));
+
+        if(deltaY > 0) {
+            this.currentPosition.y += this.speedY;
+        }else{
+            this.currentPosition.y -= this.speedY;
+        }
+    }
+    
+    #followBallPosition(){
+        const oldPos = new Point(this.currentPosition.x, this.currentPosition.y);
+        const ballPosY = this.ref.ball.currentPosition.y;
+        const deltaY = ballPosY - (this.currentPosition.y + this.centerHeight);
+        const randomizeSpeed = Math.random()*this.#difficultyMode;
+
+        if(Math.abs(deltaY) <= 1){
+            return;
+        }
+
+        this.speedY = Math.round(Math.log(Math.abs(deltaY)) - randomizeSpeed);
+        this.speedY = (this.speedY > this.#maxSpeed)? this.#maxSpeed: this.speedY;
+
+        if(deltaY > 1) {
+            this.currentPosition.y += this.speedY;
+        } else {
+            this.currentPosition.y -= this.speedY;
+        }
+
+        if(!this.#checkArea()) this.currentPosition = oldPos;
+    }
+
+    update(){
+        this.p0 = new Point(Math.round(this.currentPosition.x + this.width/2), Math.round(this.currentPosition.y + this.height/2));
+        this.p1 = new Point(this.currentPosition.x, this.currentPosition.y);
+        this.p2 = new Point(this.currentPosition.x + this.width, this.currentPosition.y);
+        this.p3 = new Point(this.currentPosition.x + this.width, this.currentPosition.y + this.height);
+        this.p4 = new Point(this.currentPosition.x, this.currentPosition.x + this.height);
+        this.aabb = new AABB(new Vector(this.p1.x, this.p1.y), new Vector(this.p3.x, this.p3.y));
     }
 
     draw(){
+        this.update();
+        this.trackBall();
+
         this.ref.ctx.beginPath();
         this.ref.ctx.fillStyle = "red";
-        this.ref.ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
+        this.ref.ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
     getType(){
