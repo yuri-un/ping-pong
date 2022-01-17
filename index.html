@@ -5,6 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="./styles.css">
+    <link rel="icon" type="image/png" href="./images/icons8-globe-earth-24.png">
     <title>Ping Pong</title>
 </head>
 <body>
@@ -13,11 +14,21 @@
         <div class="pc menu">1</div>
         <div class="score menu">2</div>
         <div class="user menu">3</div>
+
         <div class="board">
             <canvas id="board"></canvas>
         </div>
+
+        <div id="menu">
+            <span id="menu-title">Ping Pong</span>
+            <button id="new-game" name="new-game" autofocus>New Game</button>
+            <button id="resume-game" name="resume-game">Resume Game</button>
+            <button id="next-game" name="next-game">Next Game</button>
+            <button id="conf" name="conf">Configuration</button>
+            <button id="quit" name="quit">Quit</button>
+        </div>
     </div>
 
-    <script defer src="./app.js"></script>
+    <script defer src="./app.js"></script> 
 </body>
 </html>

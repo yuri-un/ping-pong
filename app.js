@@ -11,40 +11,161 @@ const Type = Object.freeze({
 });
 
 class Game{
-    isInitialised;
-    isPaused;
-    difficulty;
+    #resizingId;
+    #_canvasId = "board";
+
+    constructor(){
+        //this.board = new Board(this.#_canvasId);
+        //this.board.render();
+
+        this.menu = new GameMenu();
+        console.log(this.menu);
+
+        window.addEventListener('resize', this.#resize.bind(this), false);
+        document.addEventListener('keydown', this.#gameKey.bind(this), false);
+
+        this.menu.newGameBt.addEventListener('click', this.newGame.bind(this), false);
+        this.menu.resumeGameBt.addEventListener('click', this.resumeGame.bind(this), false);
+        this.menu.nextGameBt.addEventListener('click', this.nextGame.bind(this), false);
+        this.menu.confBt.addEventListener('click', this.confGame.bind(this), false);
+        this.menu.quitBt.addEventListener('click', this.quitGame.bind(this), false);
+
+    }
+
+    #gameKey(e){
+        switch(e.key){
+            case 'Escape':
+                this.menu.pauseGame();
+            break;
+        }
+    }
 
     newGame(){
         console.log('new game');
+        // this.board = new Board(this.#_canvasId);
+        // this.board.render();
+        this.menu.startGame();
+        console.log(this.menu);
     }
+
     restartGame(){
-
+        console.log('restart game');
     }
+
     pauseGame(){
-
+        console.log('pause game');
+        //this.board.pause();
     }
+
     resumeGame(){
-
+        console.log('resume game');
+        this.menu.resumeGame();
     }
-    gameDifficulty(){
 
+    nextGame(){
+        console.log('next game');
+    }
+
+    confGame(){
+        console.log('config game');
+    }
+
+    quitGame(){
+        console.log('quit game');
+        this.menu.quitGame();
+    }
+
+
+    #resize(){
+        //this.board.pause();
+        this.board = null;
+        clearTimeout(this.#resizingId);
+
+        this.#resizingId = setTimeout(() => {
+            this.board = new Board(this.#_canvasId);
+            this.board.render();
+        }, 100);
+    }
+}
+
+class GameMenu{
+    constructor(){
+        this.title = document.querySelector('#menu-title');
+        this.newGameBt = document.querySelector('#new-game');
+        this.resumeGameBt = document.querySelector('#resume-game');
+        this.nextGameBt = document.querySelector('#next-game');
+        this.confBt = document.querySelector('#conf');
+        this.quitBt = document.querySelector('#quit');
+
+        this.isIdle = true;
+        this.isVisible = true;
+        this.isPaused = false;
+    }
+
+    startGame(){
+        this.isIdle = false;
+        this.isVisible = !this.#isVisible();
+        this.#hideMenu();
+    }
+
+    pauseGame(){
+        this.isIdle = false;
+        this.isVisible = this.#isVisible();
+        this.isPaused = true;
+        
+        this.title.innerText = "Paused";
+        this.#showMenu();
+    }
+
+    resumeGame(){
+        this.isIdle = false;
+        this.isVisible = false;
+        this.isPaused = false;
+        
+        this.title.innerText = "Ping Pong";
+        this.#hideMenu();
+    }
+
+    quitGame(){
+        this.isIdle = true;
+
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt]);
+    }
+
+    #disableButtons(buttons){
+        buttons.forEach(button => {
+            button.disabled = true;
+        });
+    }
+
+    #isVisible(){
+        const displayVar = getComputedStyle(document.documentElement).getPropertyValue('--menu-display');
+
+        if(displayVar == "block"){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    #hideMenu(){
+        document.documentElement.style.setProperty('--menu-display', "none");
+    }
+
+    #showMenu(){
+        document.documentElement.style.setProperty('--menu-display', "block");
     }
 }
 
 class Board{
-    canvas;
-    ctx;
-    x;
-    ai;
-
     vMap = [];
+    #frameId;
 
     constructor(board){
         this.canvas = document.getElementById(board);
         this.ctx = this.canvas.getContext('2d');
 
-        this.#resize();
+        this.#init();
 
         this.borderTop = 40;
         this.borderBottom = this.borderTop;
@@ -52,18 +173,16 @@ class Board{
         this.borderRight = this.borderLeft;
         this.areaHeight = this.canvas.height - this.borderTop - this.borderBottom;
         this.areaWidth = this.canvas.width - this.borderLeft - this.borderRight;
-        
-        window.addEventListener('resize', this.#resize.bind(this), false);
 
         this.createMap();
         this.createModels();
 
-        this.previousTimestamp = performance.now();
-        // console.log(this.ctx);
-        // console.log(this.ctx.canvas);
+        let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+
+        let  cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
     }
 
-    #resize(){
+    #init(){
         this.ctx.canvas.width = window.innerWidth;
         this.ctx.canvas.height = window.innerHeight - 150;
     }
@@ -109,7 +228,13 @@ class Board{
         
         this.ball.draw();
         
-        window.requestAnimationFrame(this.render.bind(this));
+        this.#frameId = window.requestAnimationFrame(this.render.bind(this));
+    }
+
+    pause(){
+        window.cancelAnimationFrame(this.#frameId);
+        console.log('pause');
+        this.#init();
     }
 }
 
@@ -342,12 +467,31 @@ class Rectangle extends Figure{
     }
 
     update(){
-        this.p0 = new Point(Math.round(this.currentPosition.x + Math.round(this.width/2)), Math.round(this.currentPosition.y + Math.round(this.height/2)));
-        this.p1 = new Point(this.currentPosition.x, this.currentPosition.y);
-        this.p2 = new Point(this.currentPosition.x + this.width, this.currentPosition.y);
-        this.p3 = new Point(this.currentPosition.x + this.width, this.currentPosition.y + this.height);
-        this.p4 = new Point(this.currentPosition.x, this.currentPosition.x + this.height);
-        this.aabb = new AABB(new Vector(this.p1.x, this.p1.y), new Vector(this.p3.x, this.p3.y));
+        //this.p0 = new Point(Math.round(this.currentPosition.x + Math.round(this.width/2)), Math.round(this.currentPosition.y + Math.round(this.height/2)));
+        this.p0.x = this.currentPosition.x + Math.round(this.width/2);
+        this.p0.y = this.currentPosition.y + Math.round(this.height/2);
+
+        //this.p1 = new Point(this.currentPosition.x, this.currentPosition.y);
+        this.p1.x = this.currentPosition.x;
+        this.p1.y = this.currentPosition.y;
+
+        //this.p2 = new Point(this.currentPosition.x + this.width, this.currentPosition.y);
+        this.p2.x = this.currentPosition.x + this.width;
+        this.p2.y = this.currentPosition.y;
+
+        //this.p3 = new Point(this.currentPosition.x + this.width, this.currentPosition.y + this.height);
+        this.p3.x = this.currentPosition.x + this.width;
+        this.p3.y = this.currentPosition.y + this.height;
+
+        //this.p4 = new Point(this.currentPosition.x, this.currentPosition.x + this.height);
+        this.p4.x = this.currentPosition.x;
+        this.p4.y = this.currentPosition.y + this.height;
+
+        //this.aabb = new AABB(new Vector(this.p1.x, this.p1.y), new Vector(this.p3.x, this.p3.y));
+        this.aabb.min.setdX(this.p1.x);
+        this.aabb.min.setdY(this.p1.y);
+        this.aabb.max.setdX(this.p3.x);
+        this.aabb.max.setdY(this.p3.y);
     }
 
     draw(){
@@ -867,4 +1011,7 @@ class D2Math{
     } 
 }
 
-const board = new Board("board").render();
+
+const game = new Game();
+
+//const board = new Board("board").render();

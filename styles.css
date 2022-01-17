@@ -1,3 +1,7 @@
+:root{
+    --menu-display:block;
+}
+
 *{
     margin:0;
     padding:0;
@@ -8,6 +12,8 @@ html, body{
     background-color: #2D3E50;
     color: white;
     height:100vh;
+    font-size:1em;
+    font-family:Verdana, Geneva, Tahoma, sans-serif;
 }
 
 #game{
@@ -57,6 +63,55 @@ html, body{
     height:100%;
 }
 
-div{
-    /* border:1px solid #ccc; */
+#menu{
+    background-color:#2D3E50;
+
+    position:fixed;
+    display:var(--menu-display);
+    min-width:150px;
+    max-width:200px;            
+    min-height:100px;
+    top:50%;
+    left:50%;
+    padding:1em;
+    border:1px solid #1f2f3f;
+    border-radius:5px;
+
+    transform:translateY(-50%);
+    transform:translateX(-50%);
+}
+
+#menu > button{
+    width:100%;
+    /* height:1.7em; */
+    margin:3px 0;
+    padding:0.3em;
+
+    text-transform:uppercase;
+    font-size:0.7em;
+    font-weight: 600;
+    color:#1f2f3f;
+
+    border:2px solid transparent;
+    border-radius:3px;
+    outline:none;
+    cursor:pointer;
+}
+
+#menu > span{
+    display: inline-block;
+    width:100%; 
+    padding: 0.3em;
+    margin-bottom:7px;
+    /* border:1px solid #fff; */
+    text-align: center;
+}
+
+#menu > button:hover{
+    background-color: rgb(209, 241, 239);
+}
+
+#menu > button:focus{
+    /* border:2px solid #4895ef; */
+    outline:3px solid #4895ef;
 }
