@@ -10,10 +10,28 @@
 </head>
 <body>
     <div id="game">
-        <div class="title"><span>PING PONG</span></div>
-        <div class="pc menu">1</div>
-        <div class="score menu">2</div>
-        <div class="user menu">3</div>
+        <div class="title"><span id="title">PING PONG</span></div>
+        <div class="pc menu">
+            <div><span class="alias">PC</span></div>
+            <div>
+                <span id="round-1" class="round">1</span>
+                <span id="round-2" class="round">2</span>
+                <span id="round-3" class="round">3</span>
+                <span id="round-4" class="round">4</span>
+                <span id="round-5" class="round">5</span>
+            </div>
+        </div>
+        <div class="score menu"><span id="score">0:0</span></div>
+        <div class="player menu">
+            <div><span class="alias">Player</span></div>
+            <div>
+                <span id="round-1" class="round">1</span>
+                <span id="round-2" class="round">2</span>
+                <span id="round-3" class="round">3</span>
+                <span id="round-4" class="round">4</span>
+                <span id="round-5" class="round">5</span>
+            </div>
+        </div>
 
         <div class="board">
             <canvas id="board"></canvas>
@@ -23,7 +41,7 @@
             <span id="menu-title">Ping Pong</span>
             <button id="new-game" name="new-game" autofocus>New Game</button>
             <button id="resume-game" name="resume-game">Resume Game</button>
-            <button id="next-game" name="next-game">Next Game</button>
+            <button id="next-game" name="next-game">Next Set</button>
             <button id="conf" name="conf">Configuration</button>
             <button id="quit" name="quit">Quit</button>
         </div>

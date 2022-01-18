@@ -13,14 +13,17 @@ const Type = Object.freeze({
 class Game{
     #resizingId;
     #_canvasId = "board";
+    #_score = {'ai': 0, 'player': 0};
+    #_maxScore = 11;
+    #_gameLevel = 1;
 
     constructor(){
-        //this.board = new Board(this.#_canvasId);
-        //this.board.render();
-
+        //init game objects
+        this.board = null;
         this.menu = new GameMenu();
-        console.log(this.menu);
+        this.rounds = new Map();
 
+        //in game and menu event handlers
         window.addEventListener('resize', this.#resize.bind(this), false);
         document.addEventListener('keydown', this.#gameKey.bind(this), false);
 
@@ -30,6 +33,8 @@ class Game{
         this.menu.confBt.addEventListener('click', this.confGame.bind(this), false);
         this.menu.quitBt.addEventListener('click', this.quitGame.bind(this), false);
 
+        //update game status
+        this.#updateScoreUI();
     }
 
     #gameKey(e){
@@ -41,29 +46,39 @@ class Game{
     }
 
     newGame(){
-        console.log('new game');
-        // this.board = new Board(this.#_canvasId);
-        // this.board.render();
+        this.#_gameLevel = 1;
+
         this.menu.startGame();
-        console.log(this.menu);
+        this.#resetSets();
+        this.#resetScore()
+        this.#updateScoreUI()
+        
+        this.board = new Board(this.#_canvasId, this.#_gameLevel);
+        this.board.render();
     }
 
-    restartGame(){
-        console.log('restart game');
-    }
-
-    pauseGame(){
-        console.log('pause game');
-        //this.board.pause();
+    pauseGame(e){
+        // switch(e.key){
+        //     case 'Escape':
+        //         this.menu.pauseGame();
+        //     break;
+        // }
     }
 
     resumeGame(){
-        console.log('resume game');
         this.menu.resumeGame();
+        this.board.render();
     }
 
     nextGame(){
-        console.log('next game');
+        this.#_gameLevel++;
+
+        this.menu.nextGame();
+        this.#resetScore()
+        this.#updateScoreUI();
+
+        this.board = new Board(this.#_canvasId, this.#_gameLevel);
+        this.board.render();
     }
 
     confGame(){
@@ -71,25 +86,104 @@ class Game{
     }
 
     quitGame(){
-        console.log('quit game');
         this.menu.quitGame();
     }
 
-
     #resize(){
-        //this.board.pause();
         this.board = null;
         clearTimeout(this.#resizingId);
-
+        
         this.#resizingId = setTimeout(() => {
             this.board = new Board(this.#_canvasId);
+            if(this.menu.isPaused) return;
             this.board.render();
         }, 100);
+    }
+
+    incAIScore(){
+        this.#_score.ai++;
+        this.#updateScoreUI();
+    }
+
+    incPlayerScore(){
+        this.#_score.player++;
+        this.#updateScoreUI();
+    }
+
+    isRoundOver(){
+        if((this.#_score.ai >= this.#_maxScore) || (this.#_score.player >= this.#_maxScore)){
+            return true;
+        }
+        
+        return false;
+    }
+
+    updateRound(){
+        if(this.#_score.ai > this.#_score.player){
+            this.rounds.set(this.#_gameLevel, {'ai': 1, 'player': 0});
+        }else{
+            this.rounds.set(this.#_gameLevel, {'ai': 0, 'player': 1});
+        }
+        
+        this.rounds.forEach((value, key, map) => {
+            if(value.ai === 1){
+                const pcSetId = document.querySelector('#round-' + key);
+                pcSetId.classList.add('set-won');
+            }else{
+                const playerSetId = document.querySelector('#round-' + key);
+                playerSetId.classList.add('set-won');
+            }
+        });
+        
+        if(this.#_gameLevel >= 2){
+            let pcWinCount = 0;
+
+            this.rounds.forEach((value, key, map) => {
+                if(value.ai === 1){
+                    pcWinCount++;
+                }
+            });
+
+            if(pcWinCount >= 2){
+                this.menu.announceWinner('PC');
+                return;
+            }else{
+                this.menu.announceWinner('Player');
+                return;
+            }
+        }
+        
+        this.menu.setOver();
+    }
+
+    #updateScoreUI(){
+        const scoreElem = document.querySelector('#score');
+        scoreElem.innerText = this.#_score.ai + ':' + this.#_score.player;
+    }
+
+    #resetScore(){
+        this.#_score.ai = 0;
+        this.#_score.player = 0;
+    }
+
+    #resetSets(){
+        const setElems = document.querySelectorAll('.round');
+
+        //reset UI
+        setElems.forEach(elem => {
+            elem.classList.remove('set-won');
+        });
+
+        //reset data model
+        this.rounds.clear();
     }
 }
 
 class GameMenu{
+    #menuButtons = [];
+    
     constructor(){
+        this.menuElem = document.querySelector('#menu');
         this.title = document.querySelector('#menu-title');
         this.newGameBt = document.querySelector('#new-game');
         this.resumeGameBt = document.querySelector('#resume-game');
@@ -100,20 +194,25 @@ class GameMenu{
         this.isIdle = true;
         this.isVisible = true;
         this.isPaused = false;
+
+        this.#menuButtons = [this.newGameBt, this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt];
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
     }
 
     startGame(){
         this.isIdle = false;
-        this.isVisible = !this.#isVisible();
+        this.isVisible = false;
+        this.isPaused = false;
         this.#hideMenu();
     }
 
     pauseGame(){
         this.isIdle = false;
-        this.isVisible = this.#isVisible();
+        this.isVisible = true;
         this.isPaused = true;
         
         this.title.innerText = "Paused";
+        this.#disableButtons([this.newGameBt, this.nextGameBt]);
         this.#showMenu();
     }
 
@@ -126,13 +225,47 @@ class GameMenu{
         this.#hideMenu();
     }
 
+    setOver(){
+        this.isIdle = false;
+        this.isVisible = false;
+        this.isPaused = true;
+        
+        this.title.innerText = "Continue?";
+        this.#disableButtons([this.newGameBt, this.resumeGameBt, this.confBt]);
+        this.#showMenu();
+    }
+
+    nextGame(){
+        this.isIdle = false;
+        this.isVisible = false;
+        this.isPaused = false;
+        
+        this.title.innerText = "Ping Pong";
+        this.#hideMenu();
+    }
+
+    announceWinner(winner){
+        this.isIdle = true;
+        this.isVisible = true;
+        this.isPaused = true;
+        
+        this.title.innerText = winner + " won!";
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
+        this.#showMenu();
+    }
+
     quitGame(){
         this.isIdle = true;
 
-        this.#disableButtons([this.resumeGameBt, this.nextGameBt]);
+        this.title.innerText = "Ping Pong";
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
     }
 
     #disableButtons(buttons){
+        this.#menuButtons.forEach(button => {
+            button.disabled = false;
+        });
+
         buttons.forEach(button => {
             button.disabled = true;
         });
@@ -161,15 +294,16 @@ class Board{
     vMap = [];
     #frameId;
 
-    constructor(board){
+    constructor(board, level){
         this.canvas = document.getElementById(board);
         this.ctx = this.canvas.getContext('2d');
 
         this.#init();
 
-        this.borderTop = 40;
+        this.level = level;
+        this.borderTop = 5;
         this.borderBottom = this.borderTop;
-        this.borderLeft = 10;
+        this.borderLeft = 5;
         this.borderRight = this.borderLeft;
         this.areaHeight = this.canvas.height - this.borderTop - this.borderBottom;
         this.areaWidth = this.canvas.width - this.borderLeft - this.borderRight;
@@ -178,7 +312,6 @@ class Board{
         this.createModels();
 
         let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
-
         let  cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
     }
 
@@ -190,32 +323,59 @@ class Board{
     createModels(){
         const midWidth = Math.round(this.canvas.width/2);
         const midHeight = Math.round(this.canvas.height/2);
+        const paddleWidth = 25;
+        const paddleHeight = 100;
+        const aiX = 2*this.borderLeft;
+        const aiY = midHeight;
+        const pcX = this.canvas.width - 2*this.borderRight - paddleWidth;
+        const pcY = midHeight;
 
-        this.ball = new Ball(this, 150, 100, 25);
+        const ballRadius = 15;
+        const ballX = aiX + paddleWidth + 2*ballRadius;
+        const ballY = aiY + Math.round(paddleHeight/2);
 
-        this.ai = new AI(this, 2*this.borderLeft, midHeight, 25, 100);
+        const ballMaterial = new Material('solid', '#fff', 'object', null, null);
+        const aiMaterial = new Material('solid', '#B8000A', 'object', null, null);
+        const playerContMaterial = new Material('solid', '#B8000A', 'object', null, null);
+
+        this.ai = new AI(this, aiX, aiY, 25, 100, aiMaterial);
         this.vMap.push(this.ai);
-
-        this.pc = new PlayerController(this, this.canvas.width - 2*this.borderRight - 25, midHeight, 25, 100);
+        
+        this.pc = new PlayerController(this, pcX, pcY, paddleWidth, paddleHeight, playerContMaterial);
         this.vMap.push(this.pc);
-
+        
+        this.ball = new Ball(this, ballX, ballY, ballRadius, ballMaterial);
     }
 
     createMap(){
-        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, this.borderTop)); //top border
-        this.vMap.push(new Rectangle(this, 0, this.canvas.height - this.borderBottom, this.canvas.width, this.borderBottom)); //bottom border
+        const minX = this.areaWidth/4;
+        const maxX = this.areaWidth - minX;
+        const obstacleMaterial = new Material('solid', '#FFA500', 'object', null, null);
+        const borderMaterial = new Material('solid', '#fff', 'object', null, null);
+        const pcGateMaterial = new Material('transparent', '#fff', 'pc-gate', null, null);
+        const playerGateMaterial = new Material('transparent', '#fff', 'player-gate', null, null);
+
+        for (let i = 0; i < this.level - 1; i++) {
+            const randomX = Math.round(Math.random()*(maxX - minX) + minX);
+            const randomY = Math.round(Math.random()*this.areaHeight);
+            const randomWidth = Math.round(Math.random()*(this.areaWidth/10 - 25)) + 25;
+            const randomHeight = Math.round(Math.random()*(this.areaHeight/10 - 25)) + 25;
+            
+            this.vMap.push(new Rectangle(this, randomX, randomY, randomWidth, randomHeight, obstacleMaterial));
+        }
+
+        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, this.borderTop, borderMaterial)); //top border
+        this.vMap.push(new Rectangle(this, 0, this.canvas.height - this.borderBottom, this.canvas.width, this.borderBottom, borderMaterial)); //bottom border
         
-        this.vMap.push(new Rectangle(this, 0, 20, 10, this.canvas.height - 40));
-        this.vMap.push(new Rectangle(this, this.canvas.width - 10, 20, 10, this.canvas.height - 40));
-        
-        this.vMap.push(new Rectangle(this, 50, 350, 50, 50));
-        this.vMap.push(new Rectangle(this, 230, 280, 100, 100));
-        this.vMap.push(new Rectangle(this, 300, 50, 70, 70));
-        //this.vMap.push(new Rectangle(this, 160, 90, 30, 100));
-        //this.vMap.push(new Circle(this, 100, 90, 50));
+        this.vMap.push(new Rectangle(this, 0, this.borderTop, this.borderLeft, this.areaHeight, pcGateMaterial)); //pc gate
+        this.vMap.push(new Rectangle(this, this.areaWidth + this.borderRight, this.borderTop, this.borderRight, this.areaHeight, playerGateMaterial)); //player gate
     }
 
     render(){
+        if(game.menu.isPaused){
+            return;
+        }
+
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         this.vMap.forEach(obj =>{
@@ -223,11 +383,15 @@ class Board{
             
             if(obj.checkCollision(this.ball)){
                 this.ball.updateSpeedVector(obj);
+
+                if(game.isRoundOver()){
+                    game.updateRound();
+                }
             }
         });
         
         this.ball.draw();
-        
+
         this.#frameId = window.requestAnimationFrame(this.render.bind(this));
     }
 
@@ -393,6 +557,16 @@ class SpeedVector{
     }
 }
 
+class Material{
+    constructor(density, color, type, texture, sound){
+        this.density = density; //[solid, liquid, gas, transparent]
+        this.color = color; //rgb
+        this.type = type; //[object, pc-gate, player-gate, booster]
+        this.texture = texture; // -> new Image()
+        this.sound = sound //impact sound src
+    }
+}
+
 class Figure{
     constructor(ref, x, y){
         this.ref = ref;
@@ -405,12 +579,13 @@ class Figure{
 class Rectangle extends Figure{
     #type;
 
-    constructor(ref, x, y, width, height){
+    constructor(ref, x, y, width, height, material){
         super(ref, x, y);
         this.#type = Type.Rectangle;
 
         this.width = (width === 0)? 1: Math.round(width);
         this.height = (height === 0)? 1: Math.round(height);
+        this.material = material;
 
         this.p0 = new Point(Math.round(this.p1.x + Math.round(this.width/2)), Math.round(this.p1.y + Math.round(this.height/2))); //center
         this.p2 = new Point(Math.round(this.p1.x + this.width), Math.round(this.p1.y)); //top-right
@@ -498,7 +673,7 @@ class Rectangle extends Figure{
         const ctx = this.ref.ctx;
 
         ctx.beginPath();
-        ctx.fillStyle = "orange";
+        ctx.fillStyle = this.material.color;
         ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
         ctx.fill();
     }
@@ -553,9 +728,10 @@ class Ball {
     #previousPosition;
     #callNumber = 0;
 
-    constructor(ref, x, y, radius){
+    constructor(ref, x, y, radius, material){
         this.ref = ref;
         this.radius = Math.round(radius);
+        this.material = material;
 
         this.currentPosition = new Point(Math.round(x), Math.round(y));
         this.#previousPosition = new Point(Math.round(x), Math.round(y));
@@ -598,7 +774,19 @@ class Ball {
     }
 
     #updateVectorCircleToRectangle(impactObject){
-        //console.log('Vector reflection');
+        if(impactObject.material.density === 'transparent'){
+            if(impactObject.material.type === 'pc-gate'){
+                game.incPlayerScore();
+                return;
+            }
+            if(impactObject.material.type === 'player-gate'){
+                game.incAIScore();
+                return;
+            }
+
+            return;
+        }
+
         const x = this.#previousPosition.x;
         const y = this.#previousPosition.y;
 
@@ -607,11 +795,11 @@ class Ball {
         const v0 = new Vector(x - x0, y - y0);
         
         //Check for a diagonal impact
-        // const angleDelta = Math.abs(Math.acos(v0.dX / v0.getLength()) - impactObject.angleRatio);
-        // if((0 <= angleDelta) && (angleDelta <= 0.1)){
-        //     //this.#dirVector.setdX((-1)*this.#dirVector.getdX());
-        //     this.#dirVector.setdY((-1)*this.#dirVector.getdY());
-        // }
+        const angleDelta = Math.abs(Math.acos(v0.dX / v0.getLength()) - impactObject.angleRatio);
+        if((0 <= angleDelta) && (angleDelta <= 0.1)){
+            //this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+        }
 
         //Check the impact side for the static figure
         impactObject.sideMap.forEach((value, key, map) => {
@@ -669,7 +857,7 @@ class Ball {
 
         ctx.beginPath();
         ctx.lineWidth = 0;
-        ctx.fillStyle = "green";
+        ctx.fillStyle = this.material.color;
         ctx.ellipse(x0, y0, this.radius, this.radius, 0, 0, 2*Math.PI);
         ctx.fill();
 
@@ -700,12 +888,13 @@ class AI extends Rectangle{
     #maxSpeed = 7;
     #difficultyMode = 1;
 
-    constructor(ref, x, y, width, height){
+    constructor(ref, x, y, width, height, material){
         super(ref, x, y, width, height);
         this.#type = Type.AI;
 
         this.centerHeight = Math.round(height/2);
         this.defaultPosition = new Point(this.currentPosition.x, Math.round(this.ref.canvas.height/2) - this.centerHeight);
+        this.material = material;
         this.speedY = 0;
     }
 
@@ -764,7 +953,7 @@ class AI extends Rectangle{
         this.trackBall();
 
         ctx.beginPath();
-        ctx.fillStyle = "red";
+        ctx.fillStyle = this.material.color;
         ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
@@ -777,12 +966,13 @@ class PlayerController extends Rectangle{
     #type;
     #maxSpeed = 7;
 
-    constructor(ref, x, y, width, height){
+    constructor(ref, x, y, width, height, material){
         super(ref, x, y, width, height);
         this.#type = Type.PC;
 
         this.centerHeight = Math.round(height/2);
         this.defaultPosition = new Point(this.currentPosition.x, this.currentPosition.y - this.centerHeight);
+        this.material = material;
 
         this.controller = new ControllerBuilder(this.ref).setKeyboard().setMouse().build();
         this.speedY = 0;
@@ -843,7 +1033,7 @@ class PlayerController extends Rectangle{
         this.movePC();
 
         ctx.beginPath();
-        ctx.fillStyle = "red";
+        ctx.fillStyle = this.material.color;
         ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
