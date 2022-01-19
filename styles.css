@@ -164,6 +164,17 @@ html, body{
     padding: 2px 5px;
 }
 
+.pulse{
+    animation-name: pulseText;
+    animation-timing-function: linear;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;
+}
+
+@keyframes pulseText{
+    50%{color:transparent}
+}
+
 div{
     /* border:1px solid #ccc; */
 }

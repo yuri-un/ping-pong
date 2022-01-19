@@ -16,12 +16,14 @@ class Game{
     #_score = {'ai': 0, 'player': 0};
     #_maxScore = 11;
     #_gameLevel = 1;
+    #_isIdling = true;
+    #_aiTurn = true;
 
     constructor(){
         //init game objects
         this.board = null;
         this.menu = new GameMenu();
-        this.rounds = new Map();
+        this.sets = new Map();
 
         //in game and menu event handlers
         window.addEventListener('resize', this.#resize.bind(this), false);
@@ -42,7 +44,12 @@ class Game{
             case 'Escape':
                 this.menu.pauseGame();
             break;
+            case 'Enter':
+                this.startGame();
+            break;
         }
+
+        if(e.keyCode === 32) this.startGame();
     }
 
     newGame(){
@@ -55,14 +62,13 @@ class Game{
         
         this.board = new Board(this.#_canvasId, this.#_gameLevel);
         this.board.render();
+
+        this.aiTurn();
     }
 
-    pauseGame(e){
-        // switch(e.key){
-        //     case 'Escape':
-        //         this.menu.pauseGame();
-        //     break;
-        // }
+    startGame(){
+        this.#_isIdling = false;
+        this.#removeTitleMessage();
     }
 
     resumeGame(){
@@ -90,12 +96,13 @@ class Game{
     }
 
     #resize(){
+        if(!this.menu.isPaused) this.menu.pauseGame();
+
         this.board = null;
         clearTimeout(this.#resizingId);
         
         this.#resizingId = setTimeout(() => {
-            this.board = new Board(this.#_canvasId);
-            if(this.menu.isPaused) return;
+            this.board = new Board(this.#_canvasId, this.#_gameLevel);
             this.board.render();
         }, 100);
     }
@@ -105,13 +112,57 @@ class Game{
         this.#updateScoreUI();
     }
 
+    getIdling(){
+        return this.#_isIdling;
+    }
+
+    aiTurn(){
+        if(this.board === null) return;
+
+        this.#_isIdling = true;
+        this.#_aiTurn = true;
+
+        const ballObj = this.board.ball;
+        const aiObj = this.board.ai;
+
+        ballObj.currentPosition.x = aiObj.currentPosition.x + aiObj.width + ballObj.radius;
+        ballObj.currentPosition.y = aiObj.currentPosition.y + aiObj.centerHeight;
+
+        this.board.ball.setLTRDir();
+        this.board.ball.updatePosition(true);
+
+        setTimeout(() => {
+            this.startGame();
+        }, 1500);
+
+        this.#setTitleMessage('Press ENTER to start the game');
+    }
+
+    isAiTurn(){
+        return this.#_aiTurn;
+    }
+
     incPlayerScore(){
         this.#_score.player++;
         this.#updateScoreUI();
     }
 
+    playerTurn(){
+        if(this.board === null) return;
+
+        this.#_isIdling = true;
+        this.#_aiTurn = false;
+
+        this.board.ball.currentPosition.x = this.board.pc.currentPosition.x - this.board.ball.radius;
+        this.board.ball.currentPosition.y = this.board.pc.currentPosition.y + this.board.pc.centerHeight;
+
+        this.board.ball.setRTLDir();
+        this.board.ball.updatePosition(true);
+        this.#setTitleMessage('Press ENTER to start the game');
+    }
+
     isRoundOver(){
-        if((this.#_score.ai >= this.#_maxScore) || (this.#_score.player >= this.#_maxScore)){
+        if((this.#_score.ai >= this.#_maxScore) || (this.#_score.player >= this.#_maxScore) || (Math.abs(this.#_score.ai - this.#_score.player) > 5)){
             return true;
         }
         
@@ -120,31 +171,31 @@ class Game{
 
     updateRound(){
         if(this.#_score.ai > this.#_score.player){
-            this.rounds.set(this.#_gameLevel, {'ai': 1, 'player': 0});
+            this.sets.set(this.#_gameLevel, {'ai': 1, 'player': 0});
         }else{
-            this.rounds.set(this.#_gameLevel, {'ai': 0, 'player': 1});
+            this.sets.set(this.#_gameLevel, {'ai': 0, 'player': 1});
         }
         
-        this.rounds.forEach((value, key, map) => {
+        this.sets.forEach((value, key, map) => {
             if(value.ai === 1){
-                const pcSetId = document.querySelector('#round-' + key);
+                const pcSetId = document.querySelector('#pc-r-' + key);
                 pcSetId.classList.add('set-won');
             }else{
-                const playerSetId = document.querySelector('#round-' + key);
+                const playerSetId = document.querySelector('#pl-r-' + key);
                 playerSetId.classList.add('set-won');
             }
         });
         
-        if(this.#_gameLevel >= 2){
-            let pcWinCount = 0;
+        if(this.#_gameLevel > 2){
+            let pcWinSets = 0;
 
-            this.rounds.forEach((value, key, map) => {
+            this.sets.forEach((value, key, map) => {
                 if(value.ai === 1){
-                    pcWinCount++;
+                    pcWinSets++;
                 }
             });
 
-            if(pcWinCount >= 2){
+            if(5 - pcWinSets < 3){
                 this.menu.announceWinner('PC');
                 return;
             }else{
@@ -154,6 +205,18 @@ class Game{
         }
         
         this.menu.setOver();
+    }
+
+    #setTitleMessage(msg){
+        const titleElem = document.querySelector('#title');
+        titleElem.innerText = msg;
+        titleElem.classList.add('pulse');
+    }
+
+    #removeTitleMessage(){
+        const titleElem = document.querySelector('#title');
+        titleElem.innerText = 'PING PONG';
+        titleElem.classList.remove('pulse');
     }
 
     #updateScoreUI(){
@@ -175,7 +238,7 @@ class Game{
         });
 
         //reset data model
-        this.rounds.clear();
+        this.sets.clear();
     }
 }
 
@@ -191,34 +254,26 @@ class GameMenu{
         this.confBt = document.querySelector('#conf');
         this.quitBt = document.querySelector('#quit');
 
-        this.isIdle = true;
-        this.isVisible = true;
         this.isPaused = false;
 
         this.#menuButtons = [this.newGameBt, this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt];
-        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
     }
 
     startGame(){
-        this.isIdle = false;
-        this.isVisible = false;
         this.isPaused = false;
         this.#hideMenu();
     }
 
     pauseGame(){
-        this.isIdle = false;
-        this.isVisible = true;
         this.isPaused = true;
         
         this.title.innerText = "Paused";
-        this.#disableButtons([this.newGameBt, this.nextGameBt]);
+        this.#disableButtons([this.newGameBt, this.nextGameBt, this.confBt]);
         this.#showMenu();
     }
 
     resumeGame(){
-        this.isIdle = false;
-        this.isVisible = false;
         this.isPaused = false;
         
         this.title.innerText = "Ping Pong";
@@ -226,8 +281,6 @@ class GameMenu{
     }
 
     setOver(){
-        this.isIdle = false;
-        this.isVisible = false;
         this.isPaused = true;
         
         this.title.innerText = "Continue?";
@@ -236,8 +289,6 @@ class GameMenu{
     }
 
     nextGame(){
-        this.isIdle = false;
-        this.isVisible = false;
         this.isPaused = false;
         
         this.title.innerText = "Ping Pong";
@@ -245,20 +296,16 @@ class GameMenu{
     }
 
     announceWinner(winner){
-        this.isIdle = true;
-        this.isVisible = true;
         this.isPaused = true;
         
         this.title.innerText = winner + " won!";
-        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
         this.#showMenu();
     }
 
     quitGame(){
-        this.isIdle = true;
-
         this.title.innerText = "Ping Pong";
-        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.quitBt]);
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
     }
 
     #disableButtons(buttons){
@@ -394,12 +441,6 @@ class Board{
 
         this.#frameId = window.requestAnimationFrame(this.render.bind(this));
     }
-
-    pause(){
-        window.cancelAnimationFrame(this.#frameId);
-        console.log('pause');
-        this.#init();
-    }
 }
 
 //A point data structure. Contains x and y coordinates
@@ -499,7 +540,9 @@ class SpeedVector{
         this.rad = D2Math.angleToRad(angle);
         this.#dX = Math.round(speed*Math.cos(this.rad));
         this.#dY = Math.round(speed*Math.sin(this.rad));
-        this.#xDir = 1;
+
+        this.#updateXDir();
+        //this.#xDir = 1;
     }
 
     setdX(dX){
@@ -740,14 +783,39 @@ class Ball {
         const max = new Vector(this.currentPosition.x + this.radius, this.currentPosition.y + this.radius);
         this.aabb = new AABB(min, max); //set a simple collision edge
 
-        this.#dirVector = new SpeedVector(this._speed, 35);
+        this.#dirVector = new SpeedVector(this._speed, 36);
     }
 
     getVector(){
         return this.#dirVector;
     }
 
+    setLTRDir(){
+        this.#dirVector = new SpeedVector(this._speed, 36);
+    }
+
+    setRTLDir(){
+        this.#dirVector = new SpeedVector(this._speed, 200);
+    }
+
     updateSpeedVector(impactObject){
+        if(game.getIdling()) return;
+
+        if(impactObject.material.density === 'transparent'){
+            if(impactObject.material.type === 'pc-gate'){
+                game.incPlayerScore();
+                game.aiTurn();
+                return;
+            }
+            if(impactObject.material.type === 'player-gate'){
+                game.incAIScore();
+                game.playerTurn();
+                return;
+            }
+    
+            return;
+        }
+
         switch(impactObject.getType()){
             case Type.Circle:
                 this.#updateVectorCircleToCircle(impactObject);
@@ -769,24 +837,7 @@ class Ball {
         return;
     }
 
-    calls(){
-        return this.#callNumber;
-    }
-
     #updateVectorCircleToRectangle(impactObject){
-        if(impactObject.material.density === 'transparent'){
-            if(impactObject.material.type === 'pc-gate'){
-                game.incPlayerScore();
-                return;
-            }
-            if(impactObject.material.type === 'player-gate'){
-                game.incAIScore();
-                return;
-            }
-
-            return;
-        }
-
         const x = this.#previousPosition.x;
         const y = this.#previousPosition.y;
 
@@ -833,7 +884,9 @@ class Ball {
         });
     }
             
-    #updatePosition(){
+    updatePosition(once = false){
+        if(game.getIdling() && !once) return; //ref to the global game var
+
         this.#previousPosition = new Point(this.currentPosition.x, this.currentPosition.y);
         
         const deltaX = this.#dirVector.getdX();
@@ -850,7 +903,7 @@ class Ball {
 
     draw(){
         const ctx = this.ref.ctx;
-        this.#updatePosition();
+        this.updatePosition();
 
         const x0 = this.currentPosition.x;
         const y0 = this.currentPosition.y;
@@ -891,10 +944,10 @@ class AI extends Rectangle{
     constructor(ref, x, y, width, height, material){
         super(ref, x, y, width, height);
         this.#type = Type.AI;
+        this.material = material;
 
         this.centerHeight = Math.round(height/2);
         this.defaultPosition = new Point(this.currentPosition.x, Math.round(this.ref.canvas.height/2) - this.centerHeight);
-        this.material = material;
         this.speedY = 0;
     }
 
@@ -922,13 +975,17 @@ class AI extends Rectangle{
         }else{
             this.currentPosition.y -= this.speedY;
         }
+
+        if(game.getIdling() && game.isAiTurn()) this.#bindBall();
     }
     
     #followBallPosition(){
+        if(game.getIdling()) return;
+
         const oldPos = new Point(this.currentPosition.x, this.currentPosition.y);
         const ballPosY = this.ref.ball.currentPosition.y;
         const deltaY = ballPosY - (this.currentPosition.y + this.centerHeight);
-        const randomizeSpeed = Math.random()*this.#difficultyMode;
+        const randomizeSpeed = 5*Math.random()*this.#difficultyMode;
 
         if(Math.abs(deltaY) <= 2){
             return;
@@ -943,7 +1000,17 @@ class AI extends Rectangle{
             this.currentPosition.y -= this.speedY;
         }
 
+
         if(!this.checkArea()) this.currentPosition = oldPos;
+    }
+
+    #bindBall(){
+        const obj = this.ref.ball;
+
+        obj.currentPosition.x = this.currentPosition.x + this.width + obj.radius;
+        obj.currentPosition.y = this.currentPosition.y + this.centerHeight;
+
+        obj.updatePosition(true);
     }
 
     draw(){
@@ -1025,6 +1092,17 @@ class PlayerController extends Rectangle{
                 this.speedY = 0;
             }
         }
+
+        if(game.getIdling() && !game.isAiTurn()) this.#bindBall();
+    }
+
+    #bindBall(){
+        const obj = this.ref.ball;
+
+        obj.currentPosition.x = this.currentPosition.x - obj.radius;
+        obj.currentPosition.y = this.currentPosition.y + this.centerHeight;
+
+        obj.updatePosition(true);
     }
 
     draw(){
