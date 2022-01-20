@@ -17,7 +17,7 @@ class Game{
     #_maxScore = 11;
     #_gameLevel = 1;
     #_isIdling = true;
-    #_aiTurn = true;
+    #_aiTurn = false;
 
     constructor(){
         //init game objects
@@ -52,18 +52,27 @@ class Game{
         if(e.keyCode === 32) this.startGame();
     }
 
+    #getRandomAITurn(){
+        return (Math.random() >= 0.5)? true: false;
+    }
+
     newGame(){
         this.#_gameLevel = 1;
+        this.#_aiTurn = this.#getRandomAITurn();
 
         this.menu.startGame();
         this.#resetSets();
         this.#resetScore()
-        this.#updateScoreUI()
-        
+        this.#updateScoreUI();
+       
         this.board = new Board(this.#_canvasId, this.#_gameLevel);
         this.board.render();
 
-        this.aiTurn();
+        if(this.isAiTurn()){
+            setTimeout(() => {
+                this.startGame();
+            }, 1500);
+        }
     }
 
     startGame(){
@@ -184,24 +193,27 @@ class Game{
                 const playerSetId = document.querySelector('#pl-r-' + key);
                 playerSetId.classList.add('set-won');
             }
-        });
-        
-        if(this.#_gameLevel > 2){
-            let pcWinSets = 0;
+        });   
 
-            this.sets.forEach((value, key, map) => {
-                if(value.ai === 1){
-                    pcWinSets++;
-                }
-            });
+        let pcWinSets = 0;
+        let playerWinSets = 0;
 
-            if(5 - pcWinSets < 3){
-                this.menu.announceWinner('PC');
-                return;
+        this.sets.forEach((value, key, map) => {
+            if(value.ai === 1){
+                pcWinSets++;
             }else{
-                this.menu.announceWinner('Player');
-                return;
+                playerWinSets++;
             }
+        });
+
+        if(pcWinSets >= 3){
+            this.menu.announceWinner('PC');
+            return;
+        }
+
+        if(playerWinSets >= 3){
+            this.menu.announceWinner('Player');
+            return;
         }
         
         this.menu.setOver();
@@ -347,7 +359,7 @@ class Board{
 
         this.#init();
 
-        this.level = level;
+        this.level = Number.parseInt(level);
         this.borderTop = 5;
         this.borderBottom = this.borderTop;
         this.borderLeft = 5;
@@ -378,8 +390,15 @@ class Board{
         const pcY = midHeight;
 
         const ballRadius = 15;
-        const ballX = aiX + paddleWidth + 2*ballRadius;
-        const ballY = aiY + Math.round(paddleHeight/2);
+        let ballX, ballY;
+        //'game' object is always defined as this constructor
+        if(game.isAiTurn()){
+            ballX = aiX + paddleWidth + 2*ballRadius;
+            ballY = aiY + Math.round(paddleHeight/2);
+        }else{
+            ballX = pcX - 2*ballRadius;
+            ballY = pcY + Math.round(paddleHeight/2);
+        }
 
         const ballMaterial = new Material('solid', '#fff', 'object', null, null);
         const aiMaterial = new Material('solid', '#B8000A', 'object', null, null);
@@ -392,6 +411,7 @@ class Board{
         this.vMap.push(this.pc);
         
         this.ball = new Ball(this, ballX, ballY, ballRadius, ballMaterial);
+        console.log(this.ball);
     }
 
     createMap(){
@@ -563,6 +583,23 @@ class SpeedVector{
 
     getdY(){
         return this.#dY;
+    }
+
+    setAngleDeviation(){
+        if(this.#xDir === 1){
+            this.rad = D2Math.angleToRad(D2Math.getLTRAngle());
+        }else{
+            this.rad = D2Math.angleToRad(D2Math.getRTLAngle());
+        }
+
+        this.#dX = Math.round(this.speed*Math.cos(this.rad));
+        this.#dY = Math.round(this.speed*Math.sin(this.rad));
+    }
+
+    incSpeed(){
+        this.speed += 0.1;
+        this.#dX = Math.round(this.speed*Math.cos(this.rad));
+        this.#dY = Math.round(this.speed*Math.sin(this.rad));
     }
 
     #checkQuadrant(){
@@ -783,7 +820,14 @@ class Ball {
         const max = new Vector(this.currentPosition.x + this.radius, this.currentPosition.y + this.radius);
         this.aabb = new AABB(min, max); //set a simple collision edge
 
-        this.#dirVector = new SpeedVector(this._speed, 36);
+        this._speed = this._speed + this.ref.canvas.width/450;
+        let angle;
+        if(game.isAiTurn()){
+            angle = D2Math.getLTRAngle();
+        }else{
+            angle = D2Math.getRTLAngle();
+        }
+        this.#dirVector = new SpeedVector(this._speed, angle);
     }
 
     getVector(){
@@ -825,9 +869,14 @@ class Ball {
                 break;
             case Type.AI:
                 this.#updateVectorCircleToRectangle(impactObject);
+                this.#dirVector.setAngleDeviation();
+                this.#dirVector.incSpeed();
                 break;
             case Type.PC:
                 this.#updateVectorCircleToRectangle(impactObject);
+                this.#dirVector.setAngleDeviation();
+                this.#dirVector.incSpeed();
+                console.log(this.#dirVector);
                 break;
         }
     }
@@ -852,7 +901,7 @@ class Ball {
             this.#dirVector.setdY((-1)*this.#dirVector.getdY());
         }
 
-        //Check the impact side for the static figure
+        //Check the impact side for the static figure based on vector math
         impactObject.sideMap.forEach((value, key, map) => {
             this.#callNumber++;
 
@@ -874,7 +923,7 @@ class Ball {
                     this.#dirVector.setdX((-1)*this.#dirVector.getdX());
                 break;
                 case 'bottom':
-                this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+                     this.#dirVector.setdY((-1)*this.#dirVector.getdY());
                 break;
                 case 'left':
                     this.#dirVector.setdX((-1)*this.#dirVector.getdX());
@@ -939,7 +988,7 @@ class Ball {
 class AI extends Rectangle{
     #type;
     #maxSpeed = 7;
-    #difficultyMode = 1;
+    #difficultyMode = 2;
 
     constructor(ref, x, y, width, height, material){
         super(ref, x, y, width, height);
@@ -980,12 +1029,12 @@ class AI extends Rectangle{
     }
     
     #followBallPosition(){
-        if(game.getIdling()) return;
+        if(game.getIdling()) return; //check idle status based on the global var
 
         const oldPos = new Point(this.currentPosition.x, this.currentPosition.y);
         const ballPosY = this.ref.ball.currentPosition.y;
         const deltaY = ballPosY - (this.currentPosition.y + this.centerHeight);
-        const randomizeSpeed = 5*Math.random()*this.#difficultyMode;
+        const randomizeSpeed = 0 //Math.random()*this.#difficultyMode;
 
         if(Math.abs(deltaY) <= 2){
             return;
@@ -999,7 +1048,6 @@ class AI extends Rectangle{
         } else {
             this.currentPosition.y -= this.speedY;
         }
-
 
         if(!this.checkArea()) this.currentPosition = oldPos;
     }
@@ -1020,8 +1068,11 @@ class AI extends Rectangle{
         this.trackBall();
 
         ctx.beginPath();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
         ctx.fillStyle = this.material.color;
         ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        ctx.strokeRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
     getType(){
@@ -1093,7 +1144,7 @@ class PlayerController extends Rectangle{
             }
         }
 
-        if(game.getIdling() && !game.isAiTurn()) this.#bindBall();
+        if(game.getIdling() && !game.isAiTurn()) this.#bindBall(); //bind the ball to the pc controller based on the global var
     }
 
     #bindBall(){
@@ -1111,8 +1162,11 @@ class PlayerController extends Rectangle{
         this.movePC();
 
         ctx.beginPath();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
         ctx.fillStyle = this.material.color;
         ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        ctx.strokeRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
     getType(){
@@ -1276,9 +1330,30 @@ class D2Math{
 
     static radToAngle(rad){
         return rad*360/2*Math.PI;
-    } 
-}
+    }
+    
+    static getLTRAngle(){
+        let angle;
+        const delta = 26;
 
+        const angle1 = (Math.random()*delta) + 10;
+        const angle2 = (Math.random()*delta) + 325;
+        angle = (Math.random() > 0.5)? angle1: angle2;
+
+        return angle;
+    }
+
+    static getRTLAngle(){
+        let angle;
+        const delta = 26;
+
+        const angle1 = (Math.random()*delta) + 145;
+        const angle2 = (Math.random()*delta) + 190;
+        angle = (Math.random() > 0.5)? angle1: angle2;
+
+        return angle;
+    }
+}
 
 const game = new Game();
 
