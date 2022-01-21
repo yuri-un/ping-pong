@@ -56,6 +56,7 @@ html, body{
 
 #board{
     background-color:#015403;
+    background-image: url('./images/tennis-court-3.jpg');
     width:100%;
     height:100%;
 }

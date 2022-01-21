@@ -20,6 +20,8 @@ class Game{
     #_aiTurn = false;
 
     constructor(){
+        this.ready = false;
+
         //init game objects
         this.board = null;
         this.menu = new GameMenu();
@@ -37,6 +39,22 @@ class Game{
 
         //update game status
         this.#updateScoreUI();
+        this.#loadTextures();
+    }
+
+    #loadTextures(){
+        this.paddleTexture = new Image();
+        this.paddleTexture.src = "./images/ping-pong-paddle-texture-2.jpg";
+        this.paddleTexture.addEventListener('load', () => {
+            this.ready = true;
+        }, false);
+
+        this.brickWall = new Image();
+        this.brickWall.src = "./images/brick-wall.jpg";
+        this.brickWall.addEventListener('load', () => {
+            this.ready = true;
+        }, false);
+
     }
 
     #gameKey(e){
@@ -366,12 +384,13 @@ class Board{
         this.borderRight = this.borderLeft;
         this.areaHeight = this.canvas.height - this.borderTop - this.borderBottom;
         this.areaWidth = this.canvas.width - this.borderLeft - this.borderRight;
+        this.topMidPosition = new Point(Math.round(this.canvas.width/2), 0);
 
         this.createMap();
         this.createModels();
 
-        let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
-        let  cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
+        // let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+        // let  cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
     }
 
     #init(){
@@ -380,6 +399,7 @@ class Board{
     }
 
     createModels(){
+        //init props
         const midWidth = Math.round(this.canvas.width/2);
         const midHeight = Math.round(this.canvas.height/2);
         const paddleWidth = 25;
@@ -391,7 +411,8 @@ class Board{
 
         const ballRadius = 15;
         let ballX, ballY;
-        //'game' object is always defined as this constructor
+        //first turn position
+        //'game' object is always defined as constructor for this board object
         if(game.isAiTurn()){
             ballX = aiX + paddleWidth + 2*ballRadius;
             ballY = aiY + Math.round(paddleHeight/2);
@@ -399,45 +420,60 @@ class Board{
             ballX = pcX - 2*ballRadius;
             ballY = pcY + Math.round(paddleHeight/2);
         }
+        
+        //create materials for dynamic objects
+        const ballMaterial = new Material('solid', '#fff', 'object', true, null, null);
+        const aiMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, null);
+        const playerContMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, null);
 
-        const ballMaterial = new Material('solid', '#fff', 'object', null, null);
-        const aiMaterial = new Material('solid', '#B8000A', 'object', null, null);
-        const playerContMaterial = new Material('solid', '#B8000A', 'object', null, null);
-
+        //create and add to vMap the ai paddle
         this.ai = new AI(this, aiX, aiY, 25, 100, aiMaterial);
         this.vMap.push(this.ai);
         
+        //create and add to vMap the player paddle controller
         this.pc = new PlayerController(this, pcX, pcY, paddleWidth, paddleHeight, playerContMaterial);
         this.vMap.push(this.pc);
         
+        //create tennis ball
         this.ball = new Ball(this, ballX, ballY, ballRadius, ballMaterial);
-        console.log(this.ball);
     }
 
     createMap(){
-        const minX = this.areaWidth/4;
-        const maxX = this.areaWidth - minX;
-        const obstacleMaterial = new Material('solid', '#FFA500', 'object', null, null);
-        const borderMaterial = new Material('solid', '#fff', 'object', null, null);
-        const pcGateMaterial = new Material('transparent', '#fff', 'pc-gate', null, null);
-        const playerGateMaterial = new Material('transparent', '#fff', 'player-gate', null, null);
+        //create materials for static objects
+        const borderMaterial = new Material('solid', '#fff', 'object', false, null, null);
+        const pcGateMaterial = new Material('transparent', '#fff', 'pc-gate', false, null, null);
+        const playerGateMaterial = new Material('transparent', '#fff', 'player-gate', false, null, null);
+        const bgMaterial = new Material('transparent', '#fff', 'object', false, null, null);
+        
+        //create and add to vMap objects
+        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, this.borderTop, borderMaterial)); //top border
+        this.vMap.push(new Rectangle(this, 0, this.canvas.height - this.borderBottom, this.canvas.width, this.borderBottom, borderMaterial)); //bottom border
+        this.vMap.push(new Rectangle(this, this.topMidPosition.x, this.topMidPosition.y, 2, this.canvas.height, bgMaterial)); //mid line
 
+        this.vMap.push(new Rectangle(this, 0, this.borderTop, this.borderLeft, this.areaHeight, pcGateMaterial)); //pc gate
+        this.vMap.push(new Rectangle(this, this.areaWidth + this.borderRight, this.borderTop, this.borderRight, this.areaHeight, playerGateMaterial)); //player gate
+
+        //add obstacles to the scene
+        this.#createObstacles();
+    }
+
+    #createObstacles(){
+        const minX = this.areaWidth/3;
+        const maxX = this.areaWidth - minX;
+        const minY = this.areaHeight/5;
+        const maxY = this.areaHeight - minY;
+        const obstacleMaterial = new Material('solid', '#FFA500', 'object', true,  game.brickWall, null);
+        
         for (let i = 0; i < this.level - 1; i++) {
             const randomX = Math.round(Math.random()*(maxX - minX) + minX);
-            const randomY = Math.round(Math.random()*this.areaHeight);
+            const randomY = Math.round(Math.random()*(maxY - minY) + minY);
             const randomWidth = Math.round(Math.random()*(this.areaWidth/10 - 25)) + 25;
             const randomHeight = Math.round(Math.random()*(this.areaHeight/10 - 25)) + 25;
             
             this.vMap.push(new Rectangle(this, randomX, randomY, randomWidth, randomHeight, obstacleMaterial));
         }
-
-        this.vMap.push(new Rectangle(this, 0, 0, this.canvas.width, this.borderTop, borderMaterial)); //top border
-        this.vMap.push(new Rectangle(this, 0, this.canvas.height - this.borderBottom, this.canvas.width, this.borderBottom, borderMaterial)); //bottom border
-        
-        this.vMap.push(new Rectangle(this, 0, this.borderTop, this.borderLeft, this.areaHeight, pcGateMaterial)); //pc gate
-        this.vMap.push(new Rectangle(this, this.areaWidth + this.borderRight, this.borderTop, this.borderRight, this.areaHeight, playerGateMaterial)); //player gate
     }
-
+    
     render(){
         if(game.menu.isPaused){
             return;
@@ -512,6 +548,20 @@ class Vector{
         this.#calcLength();
     }
 
+    scale(val){
+        this.#dX *= val;
+        this.#dY *= val;
+        this.#calcLength();
+
+        return this;
+    }
+
+    setOpposite(){
+        this.#dX *= -1;
+        this.#dY *= -1;
+
+        return this;
+    }
 
     getLength(){
         return this.#length;
@@ -638,10 +688,11 @@ class SpeedVector{
 }
 
 class Material{
-    constructor(density, color, type, texture, sound){
+    constructor(density, color, type, shadow = true, texture, sound){
         this.density = density; //[solid, liquid, gas, transparent]
         this.color = color; //rgb
         this.type = type; //[object, pc-gate, player-gate, booster]
+        this.shadow = shadow; //[true, false]
         this.texture = texture; // -> new Image()
         this.sound = sound //impact sound src
     }
@@ -751,11 +802,58 @@ class Rectangle extends Figure{
 
     draw(){
         const ctx = this.ref.ctx;
+        
+        ctx.save();
+        if(this.material.shadow) this.drawShadow(ctx);
+        ctx.lineWidth = 0;
+        ctx.strokeRect(this.p1.x, this.p1.y, this.width, this.height);
+        ctx.restore();
+        
+        if(this.material.texture === null){
+            ctx.beginPath();
+            ctx.fillStyle = this.material.color;
+            ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
+            ctx.closePath();
+        }else{
+            ctx.lineWidth = 0;
+            const textureSizeX = 38;
+            const textureSizeY = 25;
+            const nx = Math.ceil(this.width/textureSizeX);
+            const ny = Math.ceil(this.height/textureSizeY);
+            
+            ctx.save();
+            ctx.beginPath()
+            ctx.rect(this.p1.x, this.p1.y, this.width, this.height);
+            ctx.clip();
 
-        ctx.beginPath();
-        ctx.fillStyle = this.material.color;
-        ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
-        ctx.fill();
+            ctx.beginPath();
+            for (let x = 0; x < nx; x++) {
+                for (let y = 0; y < ny; y++) {
+                    const deltaX = x*textureSizeX;
+                    const deltaY = y*textureSizeY;
+                    
+                    ctx.drawImage(this.material.texture, 0, 0, textureSizeX, textureSizeY, this.p1.x + deltaX, this.p1.y + deltaY, textureSizeX, textureSizeY);
+                }
+            }
+
+            ctx.restore();
+        }
+        
+    }
+
+    drawShadow(ctx){
+        const lightdX = this.ref.topMidPosition.x - this.currentPosition.x;
+        const lightdY = this.ref.topMidPosition.y - this.currentPosition.y;
+        const lightDirection = new Vector(lightdX, lightdY);
+        const shadowDirection = lightDirection.setOpposite();
+
+        const deltaShadowX = Math.round(Math.log(shadowDirection.getdX())/4) + 1;
+        const deltaShadowY = Math.round(Math.log(shadowDirection.getdY())/3) + 2;
+
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 7;
+        ctx.shadowOffsetX = deltaShadowX;
+        ctx.shadowOffsetY = deltaShadowY;
     }
 
     getType(){
@@ -876,7 +974,6 @@ class Ball {
                 this.#updateVectorCircleToRectangle(impactObject);
                 this.#dirVector.setAngleDeviation();
                 this.#dirVector.incSpeed();
-                console.log(this.#dirVector);
                 break;
         }
     }
@@ -957,13 +1054,33 @@ class Ball {
         const x0 = this.currentPosition.x;
         const y0 = this.currentPosition.y;
 
-        ctx.beginPath();
+        ctx.save();
+
         ctx.lineWidth = 0;
         ctx.fillStyle = this.material.color;
-        ctx.ellipse(x0, y0, this.radius, this.radius, 0, 0, 2*Math.PI);
+        ctx.beginPath();
+        this.#drawShadow(ctx);
+        ctx.arc(x0, y0, this.radius, 0, 2*Math.PI);
         ctx.fill();
 
+        ctx.restore();
+
         //this.#drawDevData();
+    }
+
+    #drawShadow(ctx){
+        const lightdX = this.ref.topMidPosition.x - this.currentPosition.x;
+        const lightdY = this.ref.topMidPosition.y - this.currentPosition.y;
+        const lightDirection = new Vector(lightdX, lightdY);
+        const shadowDirection = lightDirection.setOpposite();
+
+        const deltaShadowX = Math.round(Math.log(shadowDirection.getdX())/5) + 1;
+        const deltaShadowY = Math.round(Math.log(shadowDirection.getdY())/4) + 2;
+
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 7;
+        ctx.shadowOffsetX = deltaShadowX;
+        ctx.shadowOffsetY = deltaShadowY;
     }
 
     #drawDevData(){
@@ -1068,10 +1185,20 @@ class AI extends Rectangle{
         this.trackBall();
 
         ctx.beginPath();
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
+        ctx.save();
+
+        if(this.material.shadow) super.drawShadow(ctx);
+        
         ctx.fillStyle = this.material.color;
-        ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        if(game.ready){
+            ctx.drawImage(this.material.texture, this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        }else{
+            ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        }
+        ctx.restore();
+        
+        ctx.strokeStyle = "#F2DCA3";
+        ctx.lineWidth = 2;
         ctx.strokeRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
     }
 
@@ -1158,15 +1285,44 @@ class PlayerController extends Rectangle{
 
     draw(){
         const ctx = this.ref.ctx;
+
         this.update();
         this.movePC();
 
+        
         ctx.beginPath();
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
+        ctx.save();
+        
+        if(this.material.shadow) super.drawShadow(ctx);
+        
         ctx.fillStyle = this.material.color;
-        ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        if(game.ready){
+            ctx.drawImage(this.material.texture, this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        }else{
+            ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        }
+        ctx.restore();
+        
+        ctx.strokeStyle = "#F2DCA3";
+        ctx.lineWidth = 2;
         ctx.strokeRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+        
+        //ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
+    }
+
+    #drawShadow(ctx){
+        const lightdX = this.ref.topMidPosition.x - this.currentPosition.x;
+        const lightdY = this.ref.topMidPosition.y - this.currentPosition.y;
+        const lightDirection = new Vector(lightdX, lightdY);
+        const shadowDirection = lightDirection.setOpposite();
+
+        const deltaShadowX = Math.round(Math.log(shadowDirection.getdX())/4) + 1;
+        const deltaShadowY = Math.round(Math.log(shadowDirection.getdY())/3) + 2;
+
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 7;
+        ctx.shadowOffsetX = deltaShadowX;
+        ctx.shadowOffsetY = deltaShadowY;
     }
 
     getType(){
