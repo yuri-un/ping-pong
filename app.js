@@ -1059,7 +1059,7 @@ class Ball {
         ctx.lineWidth = 0;
         ctx.fillStyle = this.material.color;
         ctx.beginPath();
-        this.#drawShadow(ctx);
+        if(this.material.shadow) this.#drawShadow(ctx);
         ctx.arc(x0, y0, this.radius, 0, 2*Math.PI);
         ctx.fill();
 
@@ -1231,7 +1231,7 @@ class PlayerController extends Rectangle{
             const io = this.controller.keyboard;
 
             if(io.keyPressed){
-                this.speedY += 0.05 + this.speedY;
+                this.speedY += 0.1 + this.speedY;
                 this.speedY = (this.speedY > this.#maxSpeed)? this.#maxSpeed: this.speedY;
     
                 if(io.keyUp){
@@ -1252,8 +1252,8 @@ class PlayerController extends Rectangle{
             const io = this.controller.mouse;
             
             if(io.moveCommand){
-                const distance = io.leftClickPos.y - this.currentPosition.y;
-                this.speedY += 0.05 + this.speedY;
+                const distance = io.leftClickPos.y - (this.currentPosition.y + this.centerHeight);
+                this.speedY += 0.1 + this.speedY;
                 this.speedY = (this.speedY > this.#maxSpeed)? this.#maxSpeed: this.speedY;
                 
                 if(distance < (-1)*this.speedY){
@@ -1288,7 +1288,6 @@ class PlayerController extends Rectangle{
 
         this.update();
         this.movePC();
-
         
         ctx.beginPath();
         ctx.save();
@@ -1306,23 +1305,6 @@ class PlayerController extends Rectangle{
         ctx.strokeStyle = "#F2DCA3";
         ctx.lineWidth = 2;
         ctx.strokeRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
-        
-        //ctx.fillRect(this.currentPosition.x, this.currentPosition.y, this.width, this.height);
-    }
-
-    #drawShadow(ctx){
-        const lightdX = this.ref.topMidPosition.x - this.currentPosition.x;
-        const lightdY = this.ref.topMidPosition.y - this.currentPosition.y;
-        const lightDirection = new Vector(lightdX, lightdY);
-        const shadowDirection = lightDirection.setOpposite();
-
-        const deltaShadowX = Math.round(Math.log(shadowDirection.getdX())/4) + 1;
-        const deltaShadowY = Math.round(Math.log(shadowDirection.getdY())/3) + 2;
-
-        ctx.shadowColor = 'black';
-        ctx.shadowBlur = 7;
-        ctx.shadowOffsetX = deltaShadowX;
-        ctx.shadowOffsetY = deltaShadowY;
     }
 
     getType(){
