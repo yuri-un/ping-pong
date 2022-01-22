@@ -13,7 +13,7 @@ const Type = Object.freeze({
 class Game{
     #resizingId;
     #_canvasId = "board";
-    #_score = {'ai': 0, 'player': 0};
+    #_score = {ai: 0, player: 0};
     #_maxScore = 11;
     #_gameLevel = 1;
     #_isIdling = true;
@@ -40,6 +40,7 @@ class Game{
         //update game status
         this.#updateScoreUI();
         this.#loadTextures();
+        this.#loadSounds();
     }
 
     #loadTextures(){
@@ -54,7 +55,11 @@ class Game{
         this.brickWall.addEventListener('load', () => {
             this.ready = true;
         }, false);
+    }
 
+    #loadSounds(){
+        this.paddleImpact = new Audio('./sounds/paddle-hit.mp3');
+        this.wallImpact = new Audio('./sounds/wall-hit.mp3');
     }
 
     #gameKey(e){
@@ -423,8 +428,8 @@ class Board{
         
         //create materials for dynamic objects
         const ballMaterial = new Material('solid', '#fff', 'object', true, null, null);
-        const aiMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, null);
-        const playerContMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, null);
+        const aiMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, game.paddleImpact);
+        const playerContMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, game.paddleImpact);
 
         //create and add to vMap the ai paddle
         this.ai = new AI(this, aiX, aiY, 25, 100, aiMaterial);
@@ -440,7 +445,7 @@ class Board{
 
     createMap(){
         //create materials for static objects
-        const borderMaterial = new Material('solid', '#fff', 'object', false, null, null);
+        const borderMaterial = new Material('solid', '#fff', 'object', false, null, game.wallImpact);
         const pcGateMaterial = new Material('transparent', '#fff', 'pc-gate', false, null, null);
         const playerGateMaterial = new Material('transparent', '#fff', 'player-gate', false, null, null);
         const bgMaterial = new Material('transparent', '#fff', 'object', false, null, null);
@@ -462,7 +467,7 @@ class Board{
         const maxX = this.areaWidth - minX;
         const minY = this.areaHeight/5;
         const maxY = this.areaHeight - minY;
-        const obstacleMaterial = new Material('solid', '#FFA500', 'object', true,  game.brickWall, null);
+        const obstacleMaterial = new Material('solid', '#FFA500', 'object', true,  game.brickWall, game.wallImpact);
         
         for (let i = 0; i < this.level - 1; i++) {
             const randomX = Math.round(Math.random()*(maxX - minX) + minX);
@@ -485,6 +490,7 @@ class Board{
             obj.draw();
             
             if(obj.checkCollision(this.ball)){
+                if(obj.material.sound !== null) obj.playSound(obj.material.sound);
                 this.ball.updateSpeedVector(obj);
 
                 if(game.isRoundOver()){
@@ -704,6 +710,10 @@ class Figure{
 
         this.p1 = new Point(Math.round(x), Math.round(y)); //top-left
         this.currentPosition = this.p1;
+    }
+
+    playSound(actx){
+        actx.play();
     }
 }
 
@@ -991,12 +1001,12 @@ class Ball {
         const y0 = impactObject.p0.y;
         const v0 = new Vector(x - x0, y - y0);
         
-        //Check for a diagonal impact
-        const angleDelta = Math.abs(Math.acos(v0.dX / v0.getLength()) - impactObject.angleRatio);
-        if((0 <= angleDelta) && (angleDelta <= 0.1)){
-            //this.#dirVector.setdX((-1)*this.#dirVector.getdX());
-            this.#dirVector.setdY((-1)*this.#dirVector.getdY());
-        }
+        // //Check for a diagonal impact
+        // const angleDelta = Math.abs(Math.acos(v0.dX / v0.getLength()) - impactObject.angleRatio);
+        // if((0 <= angleDelta) && (angleDelta <= 0.1)){
+        //     //this.#dirVector.setdX((-1)*this.#dirVector.getdX());
+        //     this.#dirVector.setdY((-1)*this.#dirVector.getdY());
+        // }
 
         //Check the impact side for the static figure based on vector math
         impactObject.sideMap.forEach((value, key, map) => {
