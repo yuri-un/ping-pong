@@ -46,15 +46,36 @@ class Game{
     #loadTextures(){
         this.paddleTexture = new Image();
         this.paddleTexture.src = "./images/ping-pong-paddle-texture-2.jpg";
-        this.paddleTexture.addEventListener('load', () => {
-            this.ready = true;
-        }, false);
 
         this.brickWall = new Image();
         this.brickWall.src = "./images/brick-wall.jpg";
-        this.brickWall.addEventListener('load', () => {
-            this.ready = true;
-        }, false);
+
+        const imgs = [this.paddleTexture, this.brickWall];
+        const len = imgs.length;
+        let counter = 0;
+
+        [].forEach.call(imgs, (img) => {
+            if(img.complete){
+                counter++;
+                this.#updateTextureCounter(counter, len);
+            }else{
+                img.addEventListener('load', () => {
+                    counter++;
+                    this.#updateTextureCounter(counter, len);
+                }, false);
+            }
+        })
+    }
+
+    #updateTextureCounter(counter, len){
+        this.menu.updateProgressPane(counter/len*100);
+
+        if(counter === len){
+            setTimeout(() => {
+                this.ready = true;
+                this.menu.newGame();
+            }, 100);
+        }
     }
 
     #loadSounds(){
@@ -288,11 +309,27 @@ class GameMenu{
         this.nextGameBt = document.querySelector('#next-game');
         this.confBt = document.querySelector('#conf');
         this.quitBt = document.querySelector('#quit');
-
+        
         this.isPaused = false;
-
+        
         this.#menuButtons = [this.newGameBt, this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt];
         this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
+
+        //this.infoElem = document.querySelector('#info');
+        this.loadingGame();
+    }
+
+    loadingGame(){
+        this.#showInfoPane('Loading', true);
+        setTimeout(() => {
+            this.updateProgressPane(50);
+        }, 1000);
+    }
+
+    newGame(){
+        this.isPaused = false;
+        this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
+        this.#showMenu();
     }
 
     startGame(){
@@ -368,8 +405,35 @@ class GameMenu{
     }
 
     #showMenu(){
+        this.#hideInfoPane();
+
         document.documentElement.style.setProperty('--menu-display', "block");
     }
+
+    #hideInfoPane(){
+        document.documentElement.style.setProperty('--info-display', "none");
+    }
+
+    #showInfoPane(msg, loading = false){
+        this.#hideMenu();
+
+        const msgElem = document.querySelector('#msg');
+        msgElem.innerText = msg;
+
+        if(loading){
+            document.documentElement.style.setProperty('--progress-display', "block");
+        }else{
+            document.documentElement.style.setProperty('--progress-display', "none");
+        }
+
+        document.documentElement.style.setProperty('--info-display', "block");
+    }
+
+    updateProgressPane(value){
+        const progressElem = document.querySelector('#msg-prog');
+        progressElem.value = value;
+    }
+
 }
 
 class Board{

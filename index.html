@@ -37,13 +37,18 @@
             <canvas id="board"></canvas>
         </div>
 
-        <div id="menu">
+        <div id="menu" class="pane">
             <span id="menu-title">Ping Pong</span>
             <button id="new-game" name="new-game" autofocus>New Game</button>
             <button id="resume-game" name="resume-game">Resume Game</button>
             <button id="next-game" name="next-game">Next Set</button>
             <button id="conf" name="conf">Configuration</button>
             <button id="quit" name="quit">Quit</button>
+        </div>
+
+        <div id="info" class="pane">
+            <span id="msg">Loading...</span>
+            <progress id="msg-prog" max="100" value="0"></progress>
         </div>
     </div>
 
