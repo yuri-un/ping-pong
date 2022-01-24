@@ -36,6 +36,7 @@ class Game{
         this.menu.nextGameBt.addEventListener('click', this.nextGame.bind(this), false);
         this.menu.confBt.addEventListener('click', this.confGame.bind(this), false);
         this.menu.quitBt.addEventListener('click', this.quitGame.bind(this), false);
+        this.menu.menuIconElem.addEventListener('click', this.menuIconHandler.bind(this), false);
 
         //update game status
         this.#updateScoreUI();
@@ -86,7 +87,11 @@ class Game{
     #gameKey(e){
         switch(e.key){
             case 'Escape':
-                this.menu.pauseGame();
+                if(this.menu.isPaused){
+                    this.resumeGame();
+                }else{
+                    this.menu.pauseGame();
+                }
             break;
             case 'Enter':
                 this.startGame();
@@ -122,6 +127,18 @@ class Game{
     startGame(){
         this.#_isIdling = false;
         this.#removeTitleMessage();
+    }
+
+    menuIconHandler(e){
+        if(this.#_isIdling && this.#_gameLevel === 1){
+            return;
+        }
+
+        if(this.menu.isDefaultMenuIcon){
+            this.menu.pauseGame();
+        }else{
+            this.resumeGame();
+        }
     }
 
     resumeGame(){
@@ -302,6 +319,8 @@ class GameMenu{
     #menuButtons = [];
     
     constructor(){
+        this.menuIconElem = document.querySelector('#game-menu');
+
         this.menuElem = document.querySelector('#menu');
         this.title = document.querySelector('#menu-title');
         this.newGameBt = document.querySelector('#new-game');
@@ -311,6 +330,7 @@ class GameMenu{
         this.quitBt = document.querySelector('#quit');
         
         this.isPaused = false;
+        this.isDefaultMenuIcon = false;
         
         this.#menuButtons = [this.newGameBt, this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt];
         this.#disableButtons([this.resumeGameBt, this.nextGameBt, this.confBt, this.quitBt]);
@@ -390,6 +410,20 @@ class GameMenu{
         });
     }
 
+    #setDefaultMenuIcon(){
+        this.menuIconElem.classList.remove('icon-close');
+        this.menuIconElem.classList.add('icon-menu');
+
+        this.isDefaultMenuIcon = true;
+    }
+
+    #setCloseMenuIcon(){
+        this.menuIconElem.classList.remove('icon-menu');
+        this.menuIconElem.classList.add('icon-close');
+
+        this.isDefaultMenuIcon = false;
+    }
+
     #isVisible(){
         const displayVar = getComputedStyle(document.documentElement).getPropertyValue('--menu-display');
 
@@ -402,12 +436,14 @@ class GameMenu{
 
     #hideMenu(){
         document.documentElement.style.setProperty('--menu-display', "none");
+        this.#setDefaultMenuIcon();
     }
 
     #showMenu(){
         this.#hideInfoPane();
 
         document.documentElement.style.setProperty('--menu-display', "block");
+        this.#setCloseMenuIcon();
     }
 
     #hideInfoPane(){

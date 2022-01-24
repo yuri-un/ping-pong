@@ -1,5 +1,6 @@
 /* global variables */
 :root{
+    --font-size:16px;
     --menu-display:none;
     --info-display:block;
     --progress-display:block;
@@ -16,7 +17,7 @@ html, body{
     background-color: #2D3E50;
     color: white;
     height:100vh;
-    font-size:1em;
+    font-size:var(--font-size);
     font-family:Verdana, Geneva, Tahoma, sans-serif;
 }
 
@@ -29,7 +30,8 @@ html, body{
                         "pc    score player"
                         "board board board";
     grid-template-columns:2fr 1fr 2fr;
-    grid-template-rows:50px 100px calc(100vh - 150px);
+    grid-template-rows:2em 4em calc(100vh - 6em);
+    gap: 0px;
 }
 
 #game > .title{
@@ -48,10 +50,6 @@ html, body{
     grid-area:player;
 }
 
-#game > .menu{
-    height:100px;
-}
-
 #game > .board{
     grid-area:board;
 }
@@ -60,7 +58,34 @@ html, body{
     background-color:#015403;
     background-image: url('./images/tennis-court-3.jpg');
     width:100%;
-    height:100%;
+    height:99%;
+}
+
+/* menu icon */
+#game-menu{
+    position:absolute;
+    top:1px;
+    left:5px;
+    height:2em;
+    width:2em;
+
+    transition-property: box-shadow;
+    transition-duration:.1s;
+
+    cursor:pointer;
+}
+
+.icon-menu{
+    background-image: url('./images/icons8-menu-rounded-32.png');
+}
+
+.icon-close{
+    background-image:url('./images/icons8-close-32.png');
+}
+
+#game-menu:hover{
+    box-shadow:0px 0px 10px 0px #7D99B7, inset 0px 0px 7px 0px #7D99B7;
+    border-radius:4px;
 }
 
 /* popup menu styles */
@@ -73,7 +98,7 @@ html, body{
 
     position:fixed;
     min-width:150px;
-    max-width:200px;            
+    max-width:10em;            
     min-height:100px;
     top:50%;
     left:50%;
@@ -87,7 +112,6 @@ html, body{
 
 #menu > button{
     width:100%;
-    /* height:1.7em; */
     margin:3px 0;
     padding:0.3em;
 
@@ -147,12 +171,12 @@ html, body{
 
 #game .round{
     display: flex;
-    padding: 5px;
+    padding: .26em;
     margin: 0 2px;
-    width:25px;
-    height:25px;
+    width:2em;
+    height:2em;
 
-    font-size: 0.6em;
+    font-size: .8em;
     justify-content: center;
     align-content: center;
 
@@ -192,5 +216,5 @@ html, body{
 }
 
 div{
-    /* border:1px solid #ccc; */
+    /* border:0px solid #ccc; */
 }
