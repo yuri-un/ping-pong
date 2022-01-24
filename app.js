@@ -480,7 +480,7 @@ class Board{
         this.canvas = document.getElementById(board);
         this.ctx = this.canvas.getContext('2d');
 
-        this.#init();
+        this.#init(board);
 
         this.level = Number.parseInt(level);
         this.borderTop = 5;
@@ -498,9 +498,28 @@ class Board{
         // let  cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame;
     }
 
-    #init(){
-        this.ctx.canvas.width = window.innerWidth;
-        this.ctx.canvas.height = window.innerHeight - 150;
+    #init(board){
+        //resize the board, considering a tennis table aspect ratio
+        const canvasContainer = document.querySelector(`#${board}-container`);
+        const canvasBoundingRect = canvasContainer.getBoundingClientRect();
+        const canvasWidth = window.innerWidth;
+        const canvasHeight = window.innerHeight - canvasBoundingRect.top;
+
+        const ratio = 1.82;
+        let width = 400; 
+        let height = Math.round(width/ratio);
+
+        while((width < canvasWidth) && (height < canvasHeight)){
+            width++;
+            height = Math.round(width/ratio);
+        }
+
+        //resize the canvas element size 
+        this.ctx.canvas.style.width = width +'px';
+        this.ctx.canvas.style.height = height + 'px';
+        //resize the canvas resolution symmetrically
+        this.ctx.canvas.width = width;
+        this.ctx.canvas.height = height;
     }
 
     createModels(){

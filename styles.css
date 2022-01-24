@@ -55,10 +55,12 @@ html, body{
 }
 
 #board{
+    display: block;
     background-color:#015403;
     background-image: url('./images/tennis-court-3.jpg');
     width:100%;
-    height:99%;
+    height:100%;
+    margin:0 auto;
 }
 
 /* menu icon */
@@ -103,11 +105,10 @@ html, body{
     top:50%;
     left:50%;
     padding:1em;
-    border:1px solid #1f2f3f;
+    border:1px solid #8B949F;
     border-radius:5px;
 
-    transform:translateY(-50%);
-    transform:translateX(-50%);
+    transform:translate(-50%, -50%);
 }
 
 #menu > button{
@@ -131,12 +132,10 @@ html, body{
     width:100%; 
     padding: 0.3em;
     margin-bottom:7px;
-    /* border:1px solid #fff; */
     text-align: center;
 }
 
 #menu > button:focus{
-    /* border:2px solid #4895ef; */
     outline:3px solid #4895ef;
 }
 
@@ -154,7 +153,6 @@ html, body{
     justify-content:center;
 
     font-size:3em;
-    /* border:2px solid #4895ef; */
 }
 
 #game > .pc > div{
@@ -215,6 +213,6 @@ html, body{
     margin-top:10px;
 }
 
-div{
-    /* border:0px solid #ccc; */
-}
+/* div{
+    border:0px solid #ccc;
+} */
