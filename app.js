@@ -526,14 +526,14 @@ class Board{
         //init props
         const midWidth = Math.round(this.canvas.width/2);
         const midHeight = Math.round(this.canvas.height/2);
-        const paddleWidth = 25;
-        const paddleHeight = 100;
+        const paddleWidth = 20;
+        const paddleHeight = Math.max(50, Math.min(100, Math.round(0.2*this.canvas.height)));
         const aiX = 2*this.borderLeft;
         const aiY = midHeight;
         const pcX = this.canvas.width - 2*this.borderRight - paddleWidth;
         const pcY = midHeight;
 
-        const ballRadius = 15;
+        const ballRadius = Math.max(10, Math.min(15, Math.round(0.01*this.canvas.width)));
         let ballX, ballY;
         //first turn position
         //'game' object is always defined as constructor for this board object
@@ -551,7 +551,7 @@ class Board{
         const playerContMaterial = new Material('solid', '#B8000A', 'object', true, game.paddleTexture, game.paddleImpact);
 
         //create and add to vMap the ai paddle
-        this.ai = new AI(this, aiX, aiY, 25, 100, aiMaterial);
+        this.ai = new AI(this, aiX, aiY, paddleWidth, paddleHeight, aiMaterial);
         this.vMap.push(this.ai);
         
         //create and add to vMap the player paddle controller
@@ -586,11 +586,11 @@ class Board{
         const maxX = this.areaWidth - minX;
         const minY = this.areaHeight/5;
         const maxY = this.areaHeight - minY;
-        const obstacleMaterial = new Material('solid', '#FFA500', 'object', true,  game.brickWall, game.wallImpact);
+        const obstacleMaterial = new Material('solid', '#FFD4BC', 'object', true,  game.brickWall, game.wallImpact);
         
         for (let i = 0; i < this.level - 1; i++) {
             const randomX = Math.round(Math.random()*(maxX - minX) + minX);
-            const randomY = Math.round(Math.random()*(maxY - minY) + minY);
+            const randomY = (i+1)*minY; //Math.round(Math.random()*(maxY - minY) + minY);
             const randomWidth = Math.round(Math.random()*(this.areaWidth/10 - 25)) + 25;
             const randomHeight = Math.round(Math.random()*(this.areaHeight/10 - 25)) + 25;
             
@@ -772,7 +772,7 @@ class SpeedVector{
     }
 
     incSpeed(){
-        this.speed += 0.1;
+        this.speed += 0.01;
         this.#dX = Math.round(this.speed*Math.cos(this.rad));
         this.#dY = Math.round(this.speed*Math.sin(this.rad));
     }
@@ -934,13 +934,16 @@ class Rectangle extends Figure{
         
         ctx.save();
         if(this.material.shadow) this.drawShadow(ctx);
-        ctx.lineWidth = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = this.material.color;
         ctx.strokeRect(this.p1.x, this.p1.y, this.width, this.height);
         ctx.restore();
         
         if(this.material.texture === null){
             ctx.beginPath();
             ctx.fillStyle = this.material.color;
+            ctx.lineWidth = 0;
+            ctx.strokeStyle = this.material.color;
             ctx.fillRect(this.p1.x, this.p1.y, this.width, this.height);
             ctx.closePath();
         }else{
@@ -1047,7 +1050,7 @@ class Ball {
         const max = new Vector(this.currentPosition.x + this.radius, this.currentPosition.y + this.radius);
         this.aabb = new AABB(min, max); //set a simple collision edge
 
-        this._speed = this._speed + this.ref.canvas.width/450;
+        this._speed = this._speed + 0.005*this.ref.canvas.width;
         let angle;
         if(game.isAiTurn()){
             angle = D2Math.getLTRAngle();
@@ -1129,8 +1132,6 @@ class Ball {
 
         //Check the impact side for the static figure based on vector math
         impactObject.sideMap.forEach((value, key, map) => {
-            this.#callNumber++;
-
             const sideVector = new Vector(value[1].getdX() - value[0].getdX(), value[1].getdY() - value[0].getdY());
             const negativeVector = new Vector((-1)*value[0].getdX(), (-1)*value[0].getdY());
             const vd = new Vector(v0.getdX() - value[0].getdX(), v0.getdY() - value[0].getdY());
@@ -1227,14 +1228,13 @@ class Ball {
 
         this.ref.ctx.beginPath();
         this.ref.ctx.font = '18px serif';
-        this.ref.ctx.strokeText("Rad = " + Math.round(this.#dirVector.rad*1000)/1000 + " " + x0 + " " + y0, x1, y1);
+        this.ref.ctx.strokeText("Rad = " + Math.round(this.#dirVector.rad*1000)/1000 + " " + this.#dirVector.getdX() + " " + this.#dirVector.getdY(), x1, y1);
     }
 }
 
 class AI extends Rectangle{
     #type;
-    #maxSpeed = 7;
-    #difficultyMode = 2;
+    #maxSpeed = 5;
 
     constructor(ref, x, y, width, height, material){
         super(ref, x, y, width, height);
@@ -1243,7 +1243,10 @@ class AI extends Rectangle{
 
         this.centerHeight = Math.round(height/2);
         this.defaultPosition = new Point(this.currentPosition.x, Math.round(this.ref.canvas.height/2) - this.centerHeight);
+        this.#maxSpeed += 0.002*this.ref.canvas.height;
         this.speedY = 0;
+        this.acceleration = Math.log10(this.ref.canvas.width)/25;
+        this.startTime = performance.now();
     }
 
     trackBall(){
@@ -1259,11 +1262,13 @@ class AI extends Rectangle{
     #returnToDefaultPosition(){
         const deltaY = this.defaultPosition.y - this.currentPosition.y;
 
-        if(Math.abs(deltaY) <= 2){
+        if(Math.abs(deltaY) <= 1){
+            this.speedY = 0;
+            this.startTime = performance.now();
             return;
         }
 
-        this.speedY = Math.log(Math.abs(deltaY));
+        this.speedY = Math.log(Math.abs(deltaY) + 1);
 
         if(deltaY > 0) {
             this.currentPosition.y += this.speedY;
@@ -1280,19 +1285,27 @@ class AI extends Rectangle{
         const oldPos = new Point(this.currentPosition.x, this.currentPosition.y);
         const ballPosY = this.ref.ball.currentPosition.y;
         const deltaY = ballPosY - (this.currentPosition.y + this.centerHeight);
-        const randomizeSpeed = 0 //Math.random()*this.#difficultyMode;
+        //const randomizeSpeed = Math.log(this.#maxSpeed + Math.abs(deltaY)/3);
 
-        if(Math.abs(deltaY) <= 2){
+        if(Math.abs(deltaY) < 1){
+            
+            this.speedY /= 3;
+            //this.previousSpeed -= this.acceleration;
+            //this.previousSpeed = 0;
+            //this.speedY = this.previousSpeed - this.acceleration;
             return;
         }
-
-        this.speedY = Math.round(Math.log(Math.abs(deltaY)) - randomizeSpeed);
-        this.speedY = (this.speedY > this.#maxSpeed)? this.#maxSpeed: this.speedY;
+        
+        if(Math.abs(this.startTime - performance.now()) > 230){
+            this.speedY = this.speedY + this.acceleration; //give the AI paddle acceleration based on physics formula: v = v0 + at
+            this.speedY = (this.speedY > this.#maxSpeed)? this.#maxSpeed: this.speedY;
+            this.startGame = performance.now();
+        }
 
         if(deltaY > 0) {
-            this.currentPosition.y += this.speedY;
+            this.currentPosition.y += Math.round(this.speedY);
         } else {
-            this.currentPosition.y -= this.speedY;
+            this.currentPosition.y -= Math.round(this.speedY);
         }
 
         if(!this.checkArea()) this.currentPosition = oldPos;
@@ -1347,10 +1360,10 @@ class PlayerController extends Rectangle{
         this.centerHeight = Math.round(height/2);
         this.defaultPosition = new Point(this.currentPosition.x, this.currentPosition.y - this.centerHeight);
         this.material = material;
+        this.#maxSpeed += 0.005*this.ref.canvas.height;
+        this.speedY = 0;
 
         this.controller = new ControllerBuilder(this.ref).setKeyboard().setMouse().build();
-        this.speedY = 0;
-        this.n = 0;
     }
 
     movePC(){
